@@ -1,0 +1,25 @@
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java / Kotlin / Gradle / Maven
+.gradle/
+**/build/
+**/target/
+**/out/S
+*.class
+*.log
+
+# React / Node.js
+**/node_modules/
+**/dist/
+**/coverage/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+Thumbs.db
