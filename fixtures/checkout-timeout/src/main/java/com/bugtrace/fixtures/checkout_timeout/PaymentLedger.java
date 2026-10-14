@@ -1,25 +1,30 @@
-
 package com.bugtrace.fixtures.checkout_timeout;
-import java.util.Comparator;
+
+import java.math.BigDecimal;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import org.springframework.stereotype.Component;
 
 @Component
 public class PaymentLedger {
 
-    private final ConcurrentHashMap<String, CheckoutResponse> payments =
-            new ConcurrentHashMap<>();
+    public record Charge(
+        String checkoutId,
+        String orderId,
+        String paymentId,
+        BigDecimal amount,
+        String currency
+    ) {}
 
-    public void record(CheckoutResponse response) {
-        payments.put(response.paymentId(), response);
+    private final CopyOnWriteArrayList<Charge> charges =
+        new CopyOnWriteArrayList<>();
+
+    public void record(Charge charge) {
+        charges.add(charge);
     }
 
-    public List<CheckoutResponse> findAll() {
-        return payments.values()
-                .stream()
-                .sorted(Comparator.comparing(CheckoutResponse::paymentId))
-                .toList();
+    public List<Charge> findAll() {
+        return List.copyOf(charges);
     }
 }
