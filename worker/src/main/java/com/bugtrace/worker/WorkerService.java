@@ -15,20 +15,28 @@ import com.bugtrace.worker.WorkerController.*;
 @Service
 public class WorkerService {
     public record Result(UUID executionId, UUID snapshotId, Operation operation, String state,
-        Integer exitCode, String technicalError, String workspace, String logPath, Instant createdAt, Instant finishedAt) {}
+        Integer exitCode, String technicalError, String workspace, String logPath, Instant createdAt, Instant finishedAt,
+        String classification, String evidencePath, String stdoutPath, String stderrPath) {}
     private static class Execution {
         final JobRequest job;
         final Instant created = Instant.now();
         String state = "QUEUED";
         Integer exitCode;
         String error;
-        Path experiment, log, cache;
+        Path experiment, log, cache, evidence, stdout, stderr;
+        String classification;
+        String imageId;
+        Instant started;
+        boolean oomKilled, stdoutTruncated, stderrTruncated;
+        final List<Map<String, Object>> stages = new ArrayList<>();
         String container;
         Process process;
         Instant finished;
         Execution(JobRequest job) { this.job = job; }
         synchronized Result result() { return new Result(job.executionId(), job.snapshotId(), job.operation(), state,
-            exitCode, error, experiment == null ? null : experiment.toString(), log == null ? null : log.toString(), created, finished); }
+            exitCode, error, experiment == null ? null : experiment.toString(), log == null ? null : log.toString(), created, finished,
+            classification, evidence == null ? null : evidence.resolve("execution.json").toString(),
+            stdout == null ? null : stdout.toString(), stderr == null ? null : stderr.toString()); }
     }
     private final Map<UUID, Execution> executions = new ConcurrentHashMap<>();
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
@@ -76,11 +84,9 @@ public class WorkerService {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(e.job.timeoutSeconds());
         String terminal = "ERROR";
         try {
-            if (cancelled(e)) { terminal = "CANCELLED"; return; }
             synchronized (e) { if (!cancelled(e)) e.state = "PREPARING"; }
             if (!hash.matches("[0-9a-f]{64}") || !base.startsWith(root) || !base.getFileName().toString().equals("base"))
                 throw new IllegalArgumentException("Configure a Step 14 snapshot and hash");
-            if (!SnapshotFiles.hash(base).equals(hash)) throw new IllegalArgumentException("Base hash mismatch");
             Path home = base.getParent();
             SnapshotFiles.requireRealPath(home.resolve("experiments"));
             SnapshotFiles.requireRealPath(home.resolve("artifacts"));
@@ -88,12 +94,26 @@ public class WorkerService {
             Files.createDirectory(artifact);
             synchronized (e) {
                 e.log = artifact.resolve("worker.log");
+                e.evidence = artifact;
+                e.stdout = artifact.resolve("stdout.log");
+                e.stderr = artifact.resolve("stderr.log");
                 e.cache = artifact.resolve("maven-cache");
                 e.experiment = home.resolve("experiments").resolve(e.job.executionId().toString());
             }
             Files.createFile(e.log);
+            Files.createFile(e.stdout);
+            Files.createFile(e.stderr);
+            Files.createFile(artifact.resolve("control.stdout.log"));
+            Files.createFile(artifact.resolve("control.stderr.log"));
+            if (cancelled(e)) { terminal = "CANCELLED"; return; }
+            if (!SnapshotFiles.hash(base).equals(hash)) throw new IllegalArgumentException("Base hash mismatch");
             SnapshotFiles.copy(base, e.experiment);
             if (!SnapshotFiles.hash(e.experiment).equals(hash)) throw new IllegalArgumentException("Experiment copy hash mismatch");
+            Path oldReports = e.experiment.resolve("target/surefire-reports");
+            if (Files.exists(oldReports, LinkOption.NOFOLLOW_LINKS)) {
+                SnapshotFiles.requireRealPath(oldReports);
+                deleteCache(oldReports);
+            }
             copyCache(e, deadline);
             // Dependency/class preparation executes plugins only inside the restricted container.
             int code = stage(e, List.of("test-compile"), deadline);
@@ -117,61 +137,141 @@ public class WorkerService {
             catch (Exception exception) { terminal = "ERROR"; synchronized (e) { e.error = "Container cleanup failed: " + exception.getMessage(); } }
             try { if (e.cache != null) deleteCache(e.cache); }
             catch (Exception exception) { terminal = "ERROR"; synchronized (e) { e.error = "Cache cleanup failed: " + exception.getMessage(); } }
+            // Persist evidence before publishing a terminal API state.
             synchronized (e) {
                 if (cancelled(e) && !terminal.equals("ERROR")) terminal = "CANCELLED";
-                e.state = terminal; e.finished = Instant.now();
+                e.finished = Instant.now();
             }
+            try {
+                if (e.evidence != null) {
+                    var reports = ExecutionEvidence.empty();
+                    try {
+                        if (!terminal.equals("ERROR")) reports = ExecutionEvidence.collect(e.experiment, e.evidence);
+                    } catch (Exception reportError) {
+                        synchronized (e) { e.error = "JUnit evidence collection failed: " + reportError.getMessage(); }
+                        // Preserve trusted timeout/cancellation/OOM facts even if the report was left incomplete.
+                        if (!terminal.equals("CANCELLED") && !terminal.equals("TIMED_OUT") && !e.oomKilled) terminal = "ERROR";
+                    }
+                    var outcome = ExecutionEvidence.classify(terminal, e.oomKilled, e.exitCode,
+                        e.job.operation() == Operation.COMPILE, e.job.testSelector(),
+                        ExecutionEvidence.read(e.stdout), ExecutionEvidence.read(e.stderr), reports);
+                    persist(e, terminal, outcome.name(), reports);
+                    synchronized (e) { e.classification = outcome.name(); }
+                }
+            } catch (Exception evidenceError) {
+                terminal = "ERROR";
+                synchronized (e) { e.error = "Evidence collection failed: " + evidenceError.getMessage(); e.classification = "INFRASTRUCTURE_ERROR"; }
+                try { if (e.evidence != null) persist(e, terminal, "INFRASTRUCTURE_ERROR", ExecutionEvidence.empty()); }
+                catch (Exception writeError) { synchronized (e) { e.error += "; metadata could not be saved: " + writeError.getMessage(); } }
+            }
+            synchronized (e) { if (e.classification == null) e.classification = "INFRASTRUCTURE_ERROR"; e.state = terminal; }
             slots.release();
         }
     }
     private int stage(Execution e, List<String> goals, long deadline) throws Exception {
         if (cancelled(e)) throw new CancellationException();
         String name = "bugtrace-" + UUID.randomUUID();
+        Instant stageStart = Instant.now();
         synchronized (e) { e.container = name; }
         try {
             int created = command(e, DockerCommands.create(name, image, e.experiment, e.cache, goals), deadline);
             if (created == -1) return -1;
             if (created != 0) throw new IOException("Docker create failed; inspect worker.log");
             if (cancelled(e)) throw new CancellationException();
-            synchronized (e) { if (!cancelled(e)) e.state = "RUNNING"; }
+            synchronized (e) { if (!cancelled(e)) { e.state = "RUNNING"; if (e.started == null) e.started = Instant.now(); } }
             int attached = command(e, List.of("docker", "start", "--attach", name), deadline);
             if (attached == -1 || cancelled(e)) return attached;
             Process inspect = new ProcessBuilder("docker", "inspect", "--format",
-                "{{.State.Running}} {{.State.ExitCode}} {{.State.OOMKilled}}", name)
+                "{{.State.Running}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.Image}}", name)
                 .redirectErrorStream(true).start();
             if (!inspect.waitFor(5, TimeUnit.SECONDS)) { inspect.destroyForcibly(); throw new IOException("Container state inspection timed out"); }
             String state = new String(inspect.getInputStream().readNBytes(4096), java.nio.charset.StandardCharsets.UTF_8).strip();
             String[] values = state.split(" ");
-            if (inspect.exitValue() != 0 || values.length != 3 || !values[0].equals("false"))
+            if (inspect.exitValue() != 0 || values.length != 4 || !values[0].equals("false"))
                 throw new IOException("Could not confirm container completion");
-            if (values[2].equals("true")) synchronized (e) { e.error = "Container exceeded its memory limit (OOM killed)"; }
+            synchronized (e) {
+                e.imageId = values[3];
+                e.oomKilled |= values[2].equals("true");
+                if (e.oomKilled) e.error = "Container exceeded its memory limit (OOM killed)";
+                e.stages.add(Map.of("goals", List.copyOf(goals), "startedAt", stageStart.toString(),
+                    "finishedAt", Instant.now().toString(), "exitCode", Integer.parseInt(values[1]), "oomKilled", values[2].equals("true")));
+            }
             return Integer.parseInt(values[1]);
         } finally { cleanup(name); synchronized (e) { e.container = null; } }
     }
     private int command(Execution e, List<String> args, long deadline) throws Exception {
         if (System.nanoTime() >= deadline) return -1;
-        Process p = new ProcessBuilder(args).redirectErrorStream(true).start();
+        Process p = new ProcessBuilder(args).start();
         synchronized (e) { e.process = p; }
-        Future<?> drain = executor.submit(() -> drain(p, e.log));
+        boolean repositoryOutput = args.size() > 1 && args.get(1).equals("start");
+        Path stdout = repositoryOutput ? e.stdout : e.evidence.resolve("control.stdout.log");
+        Path stderr = repositoryOutput ? e.stderr : e.evidence.resolve("control.stderr.log");
+        Future<?> outDrain = executor.submit(() -> drain(p.getInputStream(), stdout, e, repositoryOutput, false));
+        Future<?> errDrain = executor.submit(() -> drain(p.getErrorStream(), stderr, e, repositoryOutput, true));
         try {
             while (!p.waitFor(200, TimeUnit.MILLISECONDS)) {
                 if (cancelled(e)) { p.destroyForcibly(); throw new CancellationException(); }
                 if (System.nanoTime() >= deadline) { p.destroyForcibly(); return -1; }
             }
-            drain.get(5, TimeUnit.SECONDS);
+            outDrain.get(5, TimeUnit.SECONDS);
+            errDrain.get(5, TimeUnit.SECONDS);
             return p.exitValue();
-        } finally { p.destroyForcibly(); drain.cancel(true); synchronized (e) { e.process = null; } }
+        } finally {
+            p.destroyForcibly();
+            if (p.isAlive()) p.waitFor(2, TimeUnit.SECONDS);
+            try { outDrain.get(2, TimeUnit.SECONDS); } catch (Exception ignored) { outDrain.cancel(true); }
+            try { errDrain.get(2, TimeUnit.SECONDS); } catch (Exception ignored) { errDrain.cancel(true); }
+            synchronized (e) { e.process = null; }
+        }
     }
-    private static void drain(Process p, Path log) {
-        try (var input = p.getInputStream(); var out = Files.newOutputStream(log, StandardOpenOption.APPEND)) {
+    private static void drain(InputStream stream, Path log, Execution e, boolean repositoryOutput, boolean stderr) {
+        try (var input = stream; var out = Files.newOutputStream(log, StandardOpenOption.APPEND)) {
             long written = Files.size(log);
             byte[] bytes = new byte[8192];
             int n;
             while ((n = input.read(bytes)) != -1) {
                 int keep = (int) Math.min(n, Math.max(0, 2L * 1024 * 1024 - written));
                 out.write(bytes, 0, keep); written += keep;
+                synchronized (e) {
+                    if (repositoryOutput && keep < n) { if (stderr) e.stderrTruncated = true; else e.stdoutTruncated = true; }
+                    long combined = Files.size(e.log);
+                    int combinedKeep = (int) Math.min(n, Math.max(0, 2L * 1024 * 1024 - combined));
+                    Files.write(e.log, Arrays.copyOf(bytes, combinedKeep), StandardOpenOption.APPEND);
+                }
             }
         } catch (IOException exception) { throw new UncheckedIOException(exception); }
+    }
+    private void persist(Execution e, String terminal, String classification, ExecutionEvidence.Reports reports) throws Exception {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("executionId", e.job.executionId().toString());
+        metadata.put("snapshotId", e.job.snapshotId().toString());
+        metadata.put("snapshotContentHash", hash);
+        metadata.put("operation", e.job.operation().name());
+        metadata.put("selectedTest", e.job.testSelector());
+        metadata.put("imageIdentifier", image);
+        metadata.put("resolvedImageId", e.imageId);
+        metadata.put("environment", Map.of("workerJava", System.getProperty("java.version"), "workerOs", System.getProperty("os.name"),
+            "containerUser", "1000:1000", "network", "none", "cpuLimit", 1, "memoryBytes", 1073741824L, "pidsLimit", 128));
+        metadata.put("createdAt", e.created.toString());
+        metadata.put("startedAt", e.started == null ? null : e.started.toString());
+        metadata.put("finishedAt", e.finished.toString());
+        metadata.put("timeoutSeconds", e.job.timeoutSeconds());
+        metadata.put("exitCode", e.exitCode);
+        metadata.put("state", terminal);
+        metadata.put("classification", classification);
+        metadata.put("terminationReason", switch (classification) {
+            case "TIMED_OUT" -> "DEADLINE_EXCEEDED";
+            case "CANCELLED" -> "USER_CANCELLED";
+            case "RESOURCE_LIMIT" -> "DOCKER_OOM_KILLED";
+            case "INFRASTRUCTURE_ERROR" -> "WORKER_OR_BUILD_ERROR";
+            default -> "PROCESS_EXITED";
+        });
+        metadata.put("technicalError", e.error);
+        metadata.put("stdout", Map.of("file", "stdout.log", "sha256", ExecutionEvidence.sha256(e.stdout), "truncated", e.stdoutTruncated));
+        metadata.put("stderr", Map.of("file", "stderr.log", "sha256", ExecutionEvidence.sha256(e.stderr), "truncated", e.stderrTruncated));
+        metadata.put("junit", reports);
+        metadata.put("stages", List.copyOf(e.stages));
+        ExecutionEvidence.write(e.evidence, metadata);
     }
     private void copyCache(Execution e, long deadline) throws Exception {
         SnapshotFiles.requireRealPath(cacheSeed);
