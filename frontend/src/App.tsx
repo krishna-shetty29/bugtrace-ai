@@ -109,6 +109,7 @@ function InvestigationDetail({ id }: { id: string }) {
     <form onSubmit={importSource}><label>Repository path<input name="repositoryPath" required maxLength={1000} placeholder="C:\Users\ADMIN\bugtrace-ai" /></label><label>Revision matching this snapshot<input name="revision" required maxLength={200} placeholder="checkout-buggy-v1" /></label><label>Module path<input name="modulePath" required defaultValue="fixtures/checkout-timeout" maxLength={200} /></label><button disabled={busy}>Import source</button></form>
     <p role="status">{notice}</p><button disabled={busy} onClick={() => void verify()}>Verify snapshot</button>{verification !== null && <Json value={verification} />}
     <JavaIndexPanel investigationId={id} />
+    <JavaGraphPanel investigationId={id} />
     <h2>Run an execution</h2><p>The worker must be running and registered for this snapshot. Use your trusted checkout fixture.</p>
     <form onSubmit={queue}><label>Operation<select name="operation"><option>RUN_SELECTED_TEST</option><option>RUN_TEST_SUITE</option><option>COMPILE</option></select></label><label>Test class (selected-test operation only)<input name="testSelector" defaultValue="CheckoutIdempotencyTest" /></label><label>Deadline in seconds<input name="timeoutSeconds" type="number" min={1} max={600} required defaultValue={300} /></label><button disabled={busy}>Queue execution</button></form>
     <h2>Open an existing execution</h2><OpenExecution /></> }</>
@@ -204,6 +205,85 @@ function JavaIndexPanel({ investigationId }: { investigationId: string }) {
       </tbody></table></div>
       <button disabled={page === 0} onClick={() => setPage(page - 1)}>Previous symbols</button>
       <button disabled={(page + 1) * 50 >= filtered.length} onClick={() => setPage(page + 1)}>Next symbols</button>
+    </>}
+  </section>
+}
+type GraphNode = { id: string; kind: string; label: string; filePath: string; startLine: number; endLine: number }
+type GraphEdge = { id: string; kind: string; from: string; to: string; confidence: string; reason: string; filePath: string; line: number; column: number }
+type SavedGraph = { snapshotId: string; contentHash: string; graph: { algorithmVersion: string; parserVersion: string; status: string; builtAt: string; javaFiles: number; failedFiles: number; uncertainEdges: number; nodes: GraphNode[]; edges: GraphEdge[]; diagnostics: JavaSourceFile[]; limitations: string[] } }
+type ImpactResult = { root: string; maxDepth: number; includeUncertain: boolean; truncated: boolean; reached: { nodeId: string; distance: number; uncertain: boolean; path: GraphEdge[] }[] }
+function JavaGraphPanel({ investigationId }: { investigationId: string }) {
+  const [saved, setSaved] = useState<SavedGraph | null>(null)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState('')
+  const [kind, setKind] = useState('ALL')
+  const [direction, setDirection] = useState('OUTGOING')
+  const [depth, setDepth] = useState(3)
+  const [includeUncertain, setIncludeUncertain] = useState(true)
+  const [impact, setImpact] = useState<ImpactResult | null>(null)
+  async function load(build: boolean) {
+    setBusy(true); setError(''); setImpact(null)
+    try {
+      const result = await api<SavedGraph>(`/investigations/${investigationId}/java-graph`, build ? {} : undefined)
+      setSaved(result); setSelected('')
+    } catch (cause) { setError(message(cause)) } finally { setBusy(false) }
+  }
+  async function traverse() {
+    setBusy(true); setError(''); setImpact(null)
+    try {
+      setImpact(await api<ImpactResult>(`/investigations/${investigationId}/java-graph/impact?nodeId=${encodeURIComponent(selected)}&depth=${depth}&includeUncertain=${includeUncertain}`))
+    } catch (cause) { setError(message(cause)) } finally { setBusy(false) }
+  }
+  function focus(id: string) { setSelected(id); setImpact(null) }
+  const nodes = saved?.graph.nodes || []
+  const byId = new Map(nodes.map(node => [node.id, node]))
+  const focused = byId.get(selected)
+  const filtered = nodes.filter(node => `${node.label} ${node.filePath}`.toLowerCase().includes(search.toLowerCase()))
+  const relationships = (saved?.graph.edges || []).filter(edge => (direction === 'OUTGOING' ? edge.from === selected : edge.to === selected) && (kind === 'ALL' || edge.kind === kind))
+  const preview = relationships.slice(0, 12)
+  const height = Math.max(180, preview.length * 76 + 40)
+  return <section aria-label="Java relationship graph"><h2>Java relationship graph</h2>
+    <p>Explore source relationships and potential impact. Dashed links are uncertain; source references do not prove runtime calls or test coverage.</p>
+    <button disabled={busy} onClick={() => void load(true)}>{busy ? 'Working…' : 'Build relationship graph'}</button>
+    <button disabled={busy} onClick={() => void load(false)}>Load saved graph</button>
+    <ErrorBox>{error}</ErrorBox>
+    {saved && <><p role="status">Source parsing: <strong>{saved.graph.status}</strong> · Nodes: {nodes.length} · Edges: {saved.graph.edges.length} · Uncertain edges: {saved.graph.uncertainEdges} · Failed files: {saved.graph.failedFiles}</p>
+      <p>Built: {stamp(saved.graph.builtAt)}. COMPLETE describes source parsing, not complete relationship resolution.</p>
+      <button onClick={() => download(`${saved.snapshotId}-java-graph.json`, JSON.stringify(saved, null, 2), 'application/json')}>Download graph JSON</button>
+      <details><summary>Analysis limitations and failed files</summary><ul>{saved.graph.limitations.map(item => <li key={item}>{item}</li>)}</ul>{saved.graph.diagnostics.map(file => <div key={file.filePath}><strong>{file.filePath}</strong><Json value={file.failures} /></div>)}</details>
+      <label>Find a node<input placeholder="CheckoutService or PaymentGateway" value={search} onChange={event => setSearch(event.target.value)} /></label>
+      <p>{filtered.length} matching nodes; first 100 shown. Narrow the search to find more specific methods.</p>
+      <div className="table" style={{ maxHeight: 320, overflow: 'auto' }}><table><thead><tr><th>Kind</th><th>Node</th><th>Location</th></tr></thead><tbody>{filtered.slice(0, 100).map(node => <tr key={node.id}><td>{node.kind}</td><td><button type="button" onClick={() => focus(node.id)}>{node.label}</button></td><td>{node.filePath}:{node.startLine || 'unresolved'}</td></tr>)}</tbody></table></div>
+      {focused && <><h3>Selected: {focused.label}</h3>
+        <label>Relationship direction<select value={direction} onChange={event => setDirection(event.target.value)}><option>OUTGOING</option><option>INCOMING</option></select></label>
+        <label>Relationship kind<select value={kind} onChange={event => setKind(event.target.value)}><option>ALL</option>{Array.from(new Set(saved.graph.edges.map(edge => edge.kind))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
+        <p>{relationships.length} matching relationships. Diagram shows up to 12; table shows up to 100. Download JSON for all edges.</p>
+        {preview.length > 0 && <div style={{ overflow: 'auto', maxHeight: 600 }}><svg width="980" height={height} viewBox={`0 0 980 ${height}`} role="img" aria-label="Selected node relationships; dashed lines indicate uncertainty">
+          <defs><marker id="relationship-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill="#496077" /></marker></defs>
+          <rect x="10" y={height / 2 - 28} width="300" height="56" rx="6" fill="#142944" /><text x="22" y={height / 2 + 5} fill="white" fontSize="12"><title>{focused.label}</title>{focused.label.length > 36 ? `${focused.label.slice(0, 33)}…` : focused.label}</text>
+          {preview.map((edge, index) => {
+            const other = byId.get(direction === 'OUTGOING' ? edge.to : edge.from)
+            const y = index * 76 + 35
+            return <g key={edge.id}><title>{`${edge.kind}: ${edge.confidence}. ${edge.reason}`}</title>
+              <line x1={direction === 'OUTGOING' ? 310 : 620} y1={direction === 'OUTGOING' ? height / 2 : y} x2={direction === 'OUTGOING' ? 620 : 310} y2={direction === 'OUTGOING' ? y : height / 2} stroke="#496077" strokeWidth="1.5" strokeDasharray={edge.confidence === 'DECLARED' ? undefined : '6 4'} markerEnd="url(#relationship-arrow)" />
+              <text x="340" y={y - 12} fontSize="10" fill="#172640">{edge.kind} · {edge.confidence}</text><rect x="620" y={y - 24} width="350" height="48" rx="6" fill="#e3ebf8" /><text x="630" y={y + 4} fontSize="12" fill="#172640">{(other?.label || edge.to).slice(0, 44)}</text>
+            </g>
+          })}
+        </svg></div>}
+        <div className="table"><table><thead><tr><th>Relationship</th><th>Related node</th><th>Confidence and reason</th><th>Evidence</th></tr></thead><tbody>{relationships.slice(0, 100).map(edge => {
+          const other = byId.get(direction === 'OUTGOING' ? edge.to : edge.from)
+          return <tr key={edge.id}><td>{edge.kind}</td><td><button onClick={() => focus(other?.id || '')}>{other?.label || '(missing node)'}</button></td><td><strong>{edge.confidence}</strong><br />{edge.reason}</td><td>{edge.filePath}:{edge.line}:{edge.column}</td></tr>
+        })}</tbody></table></div>
+        <h3>Potential impact: incoming traversal</h3><p>Follow references backward to potential callers, dependent types and tests. This uses all relationship kinds, independently of the diagram filter.</p>
+        <label>Maximum depth<select value={depth} onChange={event => { setDepth(Number(event.target.value)); setImpact(null) }}>{[1, 2, 3, 4, 5].map(value => <option key={value}>{value}</option>)}</select></label>
+        <label><input type="checkbox" style={{ width: 'auto', display: 'inline' }} checked={includeUncertain} onChange={event => { setIncludeUncertain(event.target.checked); setImpact(null) }} /> Include possible and unresolved edges</label>
+        <button disabled={busy} onClick={() => void traverse()}>Find potential impact</button>
+        {impact && <><p>{impact.reached.length} nodes reached. {impact.truncated ? 'Stopped at the 500-node limit.' : 'Traversal finished within the selected depth.'} One shortest discovery path is retained per node.</p>
+          <div className="table"><table><thead><tr><th>Potentially affected node</th><th>Distance</th><th>Path uncertainty</th><th>Evidence path</th></tr></thead><tbody>{impact.reached.map(item => <tr key={item.nodeId}><td><button onClick={() => focus(item.nodeId)}>{byId.get(item.nodeId)?.label || item.nodeId}</button></td><td>{item.distance}</td><td>{item.uncertain ? 'Contains uncertain edges' : 'Declared source relations only'}</td><td><details><summary>Show path</summary><Json value={item.path} /></details></td></tr>)}</tbody></table></div>
+        </>}
+      </>}
     </>}
   </section>
 }
