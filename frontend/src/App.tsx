@@ -108,6 +108,7 @@ function InvestigationDetail({ id }: { id: string }) {
     <h2>Import committed source</h2><p>For a snapshot already imported, use Verify snapshot. Import does not overwrite an existing base.</p>
     <form onSubmit={importSource}><label>Repository path<input name="repositoryPath" required maxLength={1000} placeholder="C:\Users\ADMIN\bugtrace-ai" /></label><label>Revision matching this snapshot<input name="revision" required maxLength={200} placeholder="checkout-buggy-v1" /></label><label>Module path<input name="modulePath" required defaultValue="fixtures/checkout-timeout" maxLength={200} /></label><button disabled={busy}>Import source</button></form>
     <p role="status">{notice}</p><button disabled={busy} onClick={() => void verify()}>Verify snapshot</button>{verification !== null && <Json value={verification} />}
+    <JavaIndexPanel investigationId={id} />
     <h2>Run an execution</h2><p>The worker must be running and registered for this snapshot. Use your trusted checkout fixture.</p>
     <form onSubmit={queue}><label>Operation<select name="operation"><option>RUN_SELECTED_TEST</option><option>RUN_TEST_SUITE</option><option>COMPILE</option></select></label><label>Test class (selected-test operation only)<input name="testSelector" defaultValue="CheckoutIdempotencyTest" /></label><label>Deadline in seconds<input name="timeoutSeconds" type="number" min={1} max={600} required defaultValue={300} /></label><button disabled={busy}>Queue execution</button></form>
     <h2>Open an existing execution</h2><OpenExecution /></> }</>
@@ -157,6 +158,54 @@ function ManualWorkflow() {
     <p>On the next page click Verify snapshot, then queue RUN_SELECTED_TEST with CheckoutIdempotencyTest. Do not reimport an already captured base.</p>
     <p>Need to import the fixture first? <a href="#/new">Create its initial snapshot report</a> and import committed source on that detail page.</p>
   </>
+}
+type JavaSymbol = { kind: string; name: string; owner: string; signature: string; filePath: string; startLine: number; startColumn: number; endLine: number; endColumn: number; annotations: string[] }
+type JavaSourceFile = { filePath: string; packageName: string; parsed: boolean; symbols: JavaSymbol[]; failures: { phase: string; message: string; line: number | null; column: number | null }[] }
+type SavedJavaIndex = { snapshotId: string; contentHash: string; index: { parser: string; parserVersion: string; languageLevel: string; status: string; indexedAt: string; javaFiles: number; parsedFiles: number; failedFiles: number; symbolCount: number; files: JavaSourceFile[] } }
+function JavaIndexPanel({ investigationId }: { investigationId: string }) {
+  const [saved, setSaved] = useState<SavedJavaIndex | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [kind, setKind] = useState('ALL')
+  const [page, setPage] = useState(0)
+  async function load(build: boolean) {
+    setBusy(true); setError('')
+    try {
+      const result = await api<SavedJavaIndex>(`/investigations/${investigationId}/java-index`, build ? {} : undefined)
+      setSaved(result); setPage(0)
+    } catch (cause) { setError(message(cause)) } finally { setBusy(false) }
+  }
+  const symbols = saved?.index.files.flatMap(file => file.symbols) || []
+  const query = search.trim().toLowerCase()
+  const filtered = symbols.filter(symbol => (kind === 'ALL' || symbol.kind === kind) &&
+    `${symbol.name} ${symbol.owner} ${symbol.signature} ${symbol.filePath}`.toLowerCase().includes(query))
+  return <section aria-label="Java symbol index"><h2>Java symbol index</h2>
+    <p>Index Java declarations in the immutable snapshot. This reads source only; it does not run a build or resolve method calls.</p>
+    <button disabled={busy} onClick={() => void load(true)}>{busy ? 'Working…' : 'Build Java index'}</button>
+    <button disabled={busy} onClick={() => void load(false)}>Load saved index</button>
+    <ErrorBox>{error}</ErrorBox>
+    {saved && <><p role="status">Status: <strong>{saved.index.status}</strong> · Java files: {saved.index.javaFiles} · Parsed: {saved.index.parsedFiles} · Failed: {saved.index.failedFiles} · Symbols: {saved.index.symbolCount}</p>
+      <p>{saved.index.parser} {saved.index.parserVersion} · {saved.index.languageLevel} · {stamp(saved.index.indexedAt)}</p>
+      <p className="identifier">Indexed snapshot: {saved.snapshotId}<br />Content hash: {saved.contentHash}</p>
+      <button onClick={() => download(`${saved.snapshotId}-java-index.json`, JSON.stringify(saved, null, 2), 'application/json')}>Download Java index JSON</button>
+      <h3>Files and parser failures</h3>
+      {saved.index.files.length === 0 && <p>No Java files were found. This is an EMPTY index, not a successful Java analysis.</p>}
+      {saved.index.files.map(file => <details key={file.filePath}><summary>{file.parsed ? 'Parsed' : 'FAILED'}: {file.filePath} ({file.symbols.length} symbols)</summary>
+        <p>Package: {file.packageName || '(default package or unavailable)'}</p>
+        {file.failures.map((failure, index) => <p className="error" key={index}>{failure.phase}: {failure.message} {failure.line !== null ? `(line ${failure.line}, column ${failure.column ?? '?'})` : ''}</p>)}
+      </details>)}
+      <h3>Symbols</h3>
+      <label>Search name, owner, signature or file<input value={search} onChange={event => { setSearch(event.target.value); setPage(0) }} /></label>
+      <label>Symbol kind<select value={kind} onChange={event => { setKind(event.target.value); setPage(0) }}><option>ALL</option>{Array.from(new Set(symbols.map(symbol => symbol.kind))).sort().map(value => <option key={value}>{value}</option>)}</select></label>
+      <p>{filtered.length} matching symbols. Showing up to 50 per page.</p>
+      <div className="table"><table><thead><tr><th>Kind</th><th>Name / signature</th><th>Owner</th><th>File and range</th><th>Annotations</th></tr></thead><tbody>
+        {filtered.slice(page * 50, (page + 1) * 50).map((symbol, index) => <tr key={`${symbol.filePath}:${symbol.startLine}:${symbol.startColumn}:${symbol.kind}:${index}`}><td>{symbol.kind}</td><td>{symbol.name}<br /><code>{symbol.signature}</code></td><td>{symbol.owner || '(default package)'}</td><td>{symbol.filePath}<br />{symbol.startLine}:{symbol.startColumn}–{symbol.endLine}:{symbol.endColumn}</td><td>{symbol.annotations.join(', ') || '—'}</td></tr>)}
+      </tbody></table></div>
+      <button disabled={page === 0} onClick={() => setPage(page - 1)}>Previous symbols</button>
+      <button disabled={(page + 1) * 50 >= filtered.length} onClick={() => setPage(page + 1)}>Next symbols</button>
+    </>}
+  </section>
 }
 export default function App() {
   const [route, setRoute] = useState(window.location.hash.slice(1) || '/')
