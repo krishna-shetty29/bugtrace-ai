@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import './App.css'
 
@@ -108,6 +108,7 @@ function InvestigationDetail({ id }: { id: string }) {
     <h2>Import committed source</h2><p>For a snapshot already imported, use Verify snapshot. Import does not overwrite an existing base.</p>
     <form onSubmit={importSource}><label>Repository path<input name="repositoryPath" required maxLength={1000} placeholder="C:\Users\ADMIN\bugtrace-ai" /></label><label>Revision matching this snapshot<input name="revision" required maxLength={200} placeholder="checkout-buggy-v1" /></label><label>Module path<input name="modulePath" required defaultValue="fixtures/checkout-timeout" maxLength={200} /></label><button disabled={busy}>Import source</button></form>
     <p role="status">{notice}</p><button disabled={busy} onClick={() => void verify()}>Verify snapshot</button>{verification !== null && <Json value={verification} />}
+    <SnapshotSearchPanel investigationId={id} />
     <JavaIndexPanel investigationId={id} />
     <JavaGraphPanel investigationId={id} />
     <h2>Run an execution</h2><p>The worker must be running and registered for this snapshot. Use your trusted checkout fixture.</p>
@@ -284,6 +285,51 @@ function JavaGraphPanel({ investigationId }: { investigationId: string }) {
           <div className="table"><table><thead><tr><th>Potentially affected node</th><th>Distance</th><th>Path uncertainty</th><th>Evidence path</th></tr></thead><tbody>{impact.reached.map(item => <tr key={item.nodeId}><td><button onClick={() => focus(item.nodeId)}>{byId.get(item.nodeId)?.label || item.nodeId}</button></td><td>{item.distance}</td><td>{item.uncertain ? 'Contains uncertain edges' : 'Declared source relations only'}</td><td><details><summary>Show path</summary><Json value={item.path} /></details></td></tr>)}</tbody></table></div>
         </>}
       </>}
+    </>}
+  </section>
+}
+type SearchHit = { kind: string; origin: string; filePath: string; executionId: string; line: number; column: number; name: string; snippet: string; score: number }
+type SearchResults = { investigationId: string; snapshotId: string; contentHash: string; query: string; kind: string; limit: number; totalMatches: number; truncated: boolean; symbolsAvailable: boolean; failedJavaFiles: number; sourceFiles: number; textFiles: number; executionsSearched: number; executionWindow: number; notices: { filePath: string; message: string }[]; hits: SearchHit[] }
+function SnapshotSearchPanel({ investigationId }: { investigationId: string }) {
+  const [query, setQuery] = useState('')
+  const [kind, setKind] = useState('ALL')
+  const [limit, setLimit] = useState(50)
+  const [results, setResults] = useState<SearchResults | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const pending = useRef<AbortController | null>(null)
+  useEffect(() => () => pending.current?.abort(), [])
+  async function search(text = query) {
+    if (busy) return
+    const request = new AbortController()
+    pending.current?.abort(); pending.current = request
+    setBusy(true); setError(''); setResults(null)
+    try {
+      const value = await api<SearchResults>(`/investigations/${investigationId}/search?q=${encodeURIComponent(text)}&kind=${kind}&limit=${limit}`, undefined, request.signal)
+      if (!request.signal.aborted) setResults(value)
+    } catch (cause) { if (!request.signal.aborted) setError(message(cause)) }
+    finally { if (!request.signal.aborted) setBusy(false) }
+  }
+  const origins: Record<string, string> = { SYMBOL: 'Java symbol', SOURCE: 'Source text', SNAPSHOT: 'File path', PARSER: 'Parser error', EXECUTION_STDOUT: 'Execution stdout', EXECUTION_STDERR: 'Execution stderr', EXECUTION_TECHNICAL_ERROR: 'Execution error' }
+  return <section aria-label="Text and symbol search"><h2>Text and symbol search</h2>
+    <p>Search this snapshot and this investigation’s saved execution errors. Matching is case-insensitive and literal; multiple words form a phrase.</p>
+    <form onSubmit={event => { event.preventDefault(); void search() }}>
+      <label>Search query<input required minLength={2} maxLength={200} disabled={busy} value={query} onChange={event => setQuery(event.target.value)} placeholder="checkout, retry, timeout, charge, idempotency" /></label>
+      <label>Search in<select disabled={busy} value={kind} onChange={event => setKind(event.target.value)}><option value="ALL">All sources</option><option value="CLASS">Class / type names</option><option value="METHOD">Method names</option><option value="FILE">File paths</option><option value="TEXT">Source text / keywords</option><option value="ERROR">Errors / stored logs</option></select></label>
+      <label>Maximum results<select disabled={busy} value={limit} onChange={event => setLimit(Number(event.target.value))}>{[10, 25, 50, 100].map(value => <option key={value}>{value}</option>)}</select></label>
+      <button disabled={busy}>{busy ? 'Searching…' : 'Search'}</button>
+    </form>
+    <p>Try: {['checkout', 'retry', 'timeout', 'charge', 'idempotency'].map(word => <button type="button" disabled={busy} key={word} onClick={() => { setQuery(word); void search(word) }}>{word}</button>)}</p>
+    <ErrorBox>{error}</ErrorBox>
+    {results && <><p role="status"><strong>{results.totalMatches} matches</strong> for “{results.query}” in {results.kind}. Showing {results.hits.length}{results.truncated ? '; narrow the query or increase the result limit to see more.' : '.'}</p>
+      {!results.symbolsAvailable && <p className="error">Java symbols are not available. Build the Java symbol index below, then search again. Source text and file paths can still be searched.</p>}
+      {results.failedJavaFiles > 0 && <p className="error">{results.failedJavaFiles} Java files failed parsing in the saved index. Their source text remains searchable, but their symbols are unavailable. Inspect the Java index diagnostics.</p>}
+      <p>Text files read: {results.textFiles}. Error search considers up to {results.executionWindow} recent executions with saved evidence from this investigation; {results.executionsSearched} were read for this query. It does not search other reports or live worker output.</p>
+      <details><summary>Search scope and read notices</summary><p className="identifier">Snapshot: {results.snapshotId}<br />Content hash: {results.contentHash}</p><p>Source files scanned for paths/text: {results.sourceFiles}. Symbol names come from the saved Java index. Supported source text includes Java, XML, properties, Markdown, JSON, SQL and common frontend/configuration extensions.</p>{results.notices.length ? <ul>{results.notices.map((notice, index) => <li key={index}>{notice.filePath}: {notice.message}</li>)}</ul> : <p>No text-read warnings.</p>}</details>
+      <button onClick={() => download(`${results.snapshotId}-search-results.json`, JSON.stringify(results, null, 2), 'application/json')}>Download search results JSON</button>
+      {results.hits.length === 0 ? <p>No matches in the selected scope. Try another query or choose All sources. Error results require a completed execution with saved output in this investigation.</p> : <div className="table"><table><thead><tr><th>Kind / origin</th><th>Name and location</th><th>Matching text</th></tr></thead><tbody>{results.hits.map((hit, index) => <tr key={`${hit.origin}:${hit.filePath}:${hit.executionId}:${hit.line}:${hit.kind}:${index}`}>
+        <td>{hit.kind}<br />{origins[hit.origin] || hit.origin}</td><td>{hit.name && <strong>{hit.name}<br /></strong>}{hit.executionId ? <><a href={`#/executions/${hit.executionId}`}>Open execution</a><br />{hit.executionId}<br />Log line {hit.line}:{hit.column}</> : <>{hit.filePath}{hit.line > 0 ? `:${hit.line}:${hit.column}` : ''}</>}</td><td><pre style={{ margin: 0 }}>{hit.snippet}</pre></td>
+      </tr>)}</tbody></table></div>}
     </>}
   </section>
 }
