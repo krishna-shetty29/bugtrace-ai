@@ -2,7 +2,7 @@ name: bugtrace-ai
 
 services:
   postgres:
-    image: postgres:17.11-bookworm
+    image: pgvector/pgvector:0.8.7-pg17-bookworm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in the root .env}
       POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in the root .env}
@@ -18,5 +18,21 @@ services:
       retries: 10
       start_period: 10s
 
+  ollama:
+    image: ollama/ollama:0.34.4
+    environment:
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+      OLLAMA_NO_CLOUD: "1"
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    cpus: 2.0
+    mem_limit: 2g
+    pids_limit: 128
+    restart: unless-stopped
+
 volumes:
   postgres_data:
+  ollama_data:
