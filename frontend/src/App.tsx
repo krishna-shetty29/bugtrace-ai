@@ -127,6 +127,37 @@ function Execution({ id, artifacts = false }: { id: string; artifacts?: boolean 
     </>}
     <h2>Standard output</h2><pre>{logs.data?.stdout || 'No stored output yet.'}</pre><h2>Standard error</h2><pre>{logs.data?.stderr || 'No stored error output.'}</pre><p>Polling retrieves stored logs. Streaming logs will be added later.</p></>
 }
+type Fixture = { snapshotId: string; projectId: string; commitSha: string; modulePath: string; contentHash: string }
+function ManualWorkflow() {
+  const fixtures = usePoll<Fixture[]>('/manual-workflow/fixtures', 10000)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  async function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const body = Object.fromEntries(new FormData(event.currentTarget).entries())
+    setBusy(true); setError('')
+    try {
+      const report = await api<Investigation>('/manual-workflow/investigations', body)
+      window.location.hash = `/investigations/${report.id}`
+    } catch (cause) { setError(message(cause)); setBusy(false) }
+  }
+  return <><h1>Manual checkout workflow</h1>
+    <p>Select the imported buggy fixture, enter your report, then create an investigation. Its source is verified before the report is saved.</p>
+    <ErrorBox>{error || fixtures.error}</ErrorBox>
+    <p>This page uses the same immutable snapshot as the configured worker. Each report and execution has its own ID; each execution gets an isolated experiment copy.</p>
+    <form onSubmit={create}>
+      <label>Fixture snapshot<select name="snapshotId" required defaultValue=""><option value="" disabled>Select checkout fixture</option>{fixtures.data?.map(fixture => <option key={fixture.snapshotId} value={fixture.snapshotId}>Checkout timeout · {fixture.snapshotId}</option>)}</select></label>
+      {fixtures.data?.map(fixture => <details key={fixture.snapshotId}><summary>Captured source identity</summary><dl><dt>Commit</dt><dd>{fixture.commitSha}</dd><dt>Module</dt><dd>{fixture.modulePath}</dd><dt>Content hash</dt><dd>{fixture.contentHash}</dd></dl></details>)}
+      <label>Title<input name="title" required maxLength={300} /></label>
+      <label>Bug description<textarea name="bugDescription" required maxLength={20000} /></label>
+      <label>Expected behavior<textarea name="expectedBehavior" required maxLength={20000} /></label>
+      <label>Observed behavior<textarea name="observedBehavior" required maxLength={20000} /></label>
+      <button disabled={busy || !fixtures.data?.length}>{busy ? 'Verifying source and saving…' : 'Create investigation from fixture'}</button>
+    </form>
+    <p>On the next page click Verify snapshot, then queue RUN_SELECTED_TEST with CheckoutIdempotencyTest. Do not reimport an already captured base.</p>
+    <p>Need to import the fixture first? <a href="#/new">Create its initial snapshot report</a> and import committed source on that detail page.</p>
+  </>
+}
 export default function App() {
   const [route, setRoute] = useState(window.location.hash.slice(1) || '/')
   useEffect(() => { const change = () => setRoute(window.location.hash.slice(1) || '/'); window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change) }, [])
@@ -135,9 +166,10 @@ export default function App() {
   let page: ReactNode
   if (route === '/' || route === '/investigations') page = <Investigations />
   else if (route === '/new') page = <NewInvestigation />
+  else if (route === '/workflow') page = <ManualWorkflow />
   else if (route === '/executions' || route === '/artifacts') page = <><h1>{parts[0] === 'artifacts' ? 'Artifacts' : 'Open execution'}</h1><p>Enter a backend job ID. The current API does not list execution history.</p><OpenExecution artifacts={parts[0] === 'artifacts'} /></>
   else if (parts.length === 2 && uuid.test(parts[1]) && parts[0] === 'investigations') page = <InvestigationDetail id={parts[1]} />
   else if (parts.length === 2 && uuid.test(parts[1]) && ['executions', 'artifacts'].includes(parts[0])) page = <Execution id={parts[1]} artifacts={parts[0] === 'artifacts'} />
   else page = <h1>Page not found</h1>
-  return <><header><a className="brand" href="#/">BugTrace AI</a><nav aria-label="Main navigation"><a href="#/">Investigations</a><a href="#/new">New investigation</a><a href="#/executions">Execution detail</a><a href="#/artifacts">Artifacts</a></nav></header><main key={route}>{page}</main></>
+  return <><header><a className="brand" href="#/">BugTrace AI</a><nav aria-label="Main navigation"><a href="#/workflow">Manual workflow</a><a href="#/">Investigations</a><a href="#/new">New investigation</a><a href="#/executions">Execution detail</a><a href="#/artifacts">Artifacts</a></nav></header><main key={route}>{page}</main></>
 }

@@ -81,7 +81,19 @@ public class SnapshotImportService {
         if (row[0] == null || row[1] == null)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Snapshot has not been imported");
         Path base = Path.of(row[0]).toAbsolutePath().normalize();
-        if (!base.equals(workspace.resolve(id.toString()).resolve("base")))
+        // Reports may share an immutable fixture snapshot. Its base stays under
+        // the original importing investigation, which must still reference it.
+        UUID owner;
+        try { owner = UUID.fromString(base.getParent().getFileName().toString()); }
+        catch (RuntimeException exception) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Invalid snapshot workspace");
+        }
+        Integer references = jdbc.queryForObject("""
+            SELECT COUNT(*) FROM investigations current_report
+            JOIN investigations original_report ON original_report.snapshot_id=current_report.snapshot_id
+            WHERE current_report.id=? AND original_report.id=?
+            """, Integer.class, id, owner);
+        if (!base.equals(workspace.resolve(owner.toString()).resolve("base")) || references == null || references != 1)
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Snapshot location does not match workspace");
         try {
             String actual = GitSnapshot.contentHash(base);
