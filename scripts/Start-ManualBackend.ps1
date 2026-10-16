@@ -13,7 +13,7 @@ Get-Content -LiteralPath (Join-Path $projectRoot '.env') | ForEach-Object {
                 ($value.StartsWith('"') -and $value.EndsWith('"')) -or
                 ($value.StartsWith("'") -and $value.EndsWith("'"))
             )) { $value = $value.Substring(1, $value.Length - 2) }
-            if ($name -in @('DB_URL','POSTGRES_USER','POSTGRES_PASSWORD')) {
+            if ($name -in @('DB_URL','POSTGRES_USER','POSTGRES_PASSWORD','OPENAI_API_KEY','BUGTRACE_AI_PROVIDER','BUGTRACE_AI_MODEL')) {
                 [Environment]::SetEnvironmentVariable($name, $value, 'Process')
             }
         }

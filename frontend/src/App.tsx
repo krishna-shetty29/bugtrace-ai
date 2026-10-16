@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react'
 import './App.css'
 import SemanticRetrievalPanel from './SemanticRetrievalPanel'
 import DocumentContextPanel from './DocumentContextPanel'
+import AiModelPanel from './AiModelPanel'
 
 type Investigation = { id: string; projectId: string; snapshotId: string; title: string; workflowState: string; outcome: string | null; bugDescription: string; expectedBehavior: string; observedBehavior: string; createdAt: string; updatedAt: string }
 type Project = { id: string; name: string }
@@ -110,6 +111,7 @@ function InvestigationDetail({ id }: { id: string }) {
     <h2>Import committed source</h2><p>For a snapshot already imported, use Verify snapshot. Import does not overwrite an existing base.</p>
     <form onSubmit={importSource}><label>Repository path<input name="repositoryPath" required maxLength={1000} placeholder="C:\Users\ADMIN\bugtrace-ai" /></label><label>Revision matching this snapshot<input name="revision" required maxLength={200} placeholder="checkout-buggy-v1" /></label><label>Module path<input name="modulePath" required defaultValue="fixtures/checkout-timeout" maxLength={200} /></label><button disabled={busy}>Import source</button></form>
     <p role="status">{notice}</p><button disabled={busy} onClick={() => void verify()}>Verify snapshot</button>{verification !== null && <Json value={verification} />}
+    <AiModelPanel key={"model-" + id} investigationId={id} />
     <DocumentContextPanel key={"documents-" + id} investigationId={id} />
     <SemanticRetrievalPanel key={id} investigationId={id} />
     <SnapshotSearchPanel investigationId={id} />

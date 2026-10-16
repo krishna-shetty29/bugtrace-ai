@@ -1,0 +1,27 @@
+CREATE TABLE ai_model_calls (
+    id uuid PRIMARY KEY,
+    investigation_id uuid NOT NULL REFERENCES investigations(id),
+    snapshot_id uuid NOT NULL REFERENCES repository_snapshots(id),
+    request_hash text NOT NULL,
+    provider text NOT NULL,
+    requested_model text NOT NULL,
+    actual_model text,
+    prompt_version text NOT NULL,
+    question text NOT NULL,
+    instructions text NOT NULL,
+    user_input text NOT NULL,
+    input_evidence jsonb NOT NULL,
+    state text NOT NULL CHECK(state IN ('STARTED','SUCCEEDED','INCOMPLETE','FAILED')),
+    response_text text,
+    provider_request_id text,
+    input_tokens bigint CHECK(input_tokens>=0),
+    output_tokens bigint CHECK(output_tokens>=0),
+    total_tokens bigint CHECK(total_tokens>=0),
+    usage_kind text NOT NULL CHECK(usage_kind IN ('UNAVAILABLE','MEASURED','MOCK_NOT_MEASURED')),
+    duration_ms bigint CHECK(duration_ms>=0),
+    error_code text,
+    error_message text,
+    created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+    finished_at timestamptz
+);
+CREATE INDEX ai_calls_investigation ON ai_model_calls(investigation_id,created_at DESC);
