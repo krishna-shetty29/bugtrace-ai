@@ -36,14 +36,20 @@ public class AiCallService {
         var row=new LinkedHashMap<>(rows.getFirst());row.put("input_evidence",mapper.readTree(row.get("input_evidence").toString()));row.remove("request_hash");return row;
     }
     public Map<String,Object> submit(UUID investigation,Submission submission){
-        if(submission==null||submission.clientRequestId()==null||submission.question()==null||submission.question().isBlank()||submission.question().length()>2000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Supply a new request UUID, a 1–2000 character question and selected evidence");
+        return submitVersioned(investigation, submission, PROMPT_VERSION, INSTRUCTIONS, 2000);
+    }
+    Map<String,Object> submitHypothesis(UUID investigation,Submission submission){
+        return submitVersioned(investigation, submission, EvidenceAnalyzerController.VERSION, EvidenceAnalyzerController.INSTRUCTIONS, 10000);
+    }
+    private Map<String,Object> submitVersioned(UUID investigation,Submission submission,String promptVersion,String instructions,int questionLimit){
+        if(submission==null||submission.clientRequestId()==null||submission.question()==null||submission.question().isBlank()||submission.question().length()>questionLimit)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Supply a request UUID, a nonempty report within the operation limit and selected evidence");
         var selected=evidence.resolve(investigation,submission.evidence());UUID id=submission.clientRequestId();
         String question=settings.redact(submission.question().strip());
         var inputs=selected.stream().map(item->{var row=new LinkedHashMap<String,Object>();row.put("id",item.id());row.put("reference",item.reference());row.put("origin",item.origin());row.put("sourceRef",item.sourceRef());row.put("revision",item.revision());row.put("lineKind",item.lineKind());row.put("startLine",item.startLine());row.put("endLine",item.endLine());row.put("sourceHash",item.sourceHash());String text=settings.redact(item.text());row.put("text",text);row.put("promptTextHash",ContextDocuments.hash(text));row.put("redacted",!text.equals(item.text()));return row;}).toList();
         var inputFields=new LinkedHashMap<String,Object>();inputFields.put("question",question);inputFields.put("evidence",inputs);
         String selectedJson=mapper.writeValueAsString(inputs),input=mapper.writeValueAsString(inputFields);
         if(input.length()>24000)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Model input exceeds 24000 characters; select fewer evidence items");
-        String requestHash=ContextDocuments.hash(PROMPT_VERSION+"\n"+input);
+        String requestHash=ContextDocuments.hash(promptVersion+"\n"+input);
         var existing=jdbc.queryForList("SELECT investigation_id,request_hash,state FROM ai_model_calls WHERE id=?",id);
         if(!existing.isEmpty())return replay(investigation,id,requestHash,existing.getFirst());
         if(!active.add(investigation))throw new ResponseStatusException(HttpStatus.CONFLICT,"A model call is already running for this investigation");
@@ -52,11 +58,11 @@ public class AiCallService {
             try{int inserted=jdbc.update("""
                 INSERT INTO ai_model_calls(id,investigation_id,snapshot_id,request_hash,provider,requested_model,prompt_version,question,instructions,user_input,input_evidence,state,usage_kind)
                 SELECT ?,i.id,i.snapshot_id,?,?,?,?,?,?,?,CAST(? AS jsonb),'STARTED','UNAVAILABLE' FROM investigations i WHERE i.id=?
-                """,id,requestHash,settings.provider(),settings.model(),PROMPT_VERSION,question,INSTRUCTIONS,input,selectedJson,investigation);
+                """,id,requestHash,settings.provider(),settings.model(),promptVersion,question,instructions,input,selectedJson,investigation);
                 if(inserted!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Investigation no longer exists");}
             catch(DuplicateKeyException ex){return replay(investigation,id,requestHash,jdbc.queryForMap("SELECT investigation_id,request_hash,state FROM ai_model_calls WHERE id=?",id));}
             try{
-                var response=provider.generate(new AiProvider.Request(settings.model(),INSTRUCTIONS,input,settings.maxOutput()));
+                var response=provider.generate(new AiProvider.Request(settings.model(),instructions,input,settings.maxOutput()));
                 var usage=response.usage()==null?AiProvider.Usage.unavailable():response.usage();
                 String state=response.errorCode()!=null?"FAILED":response.incomplete()?"INCOMPLETE":"SUCCEEDED";
                 jdbc.update("""
