@@ -55,6 +55,7 @@ public final class GeneratedReproduction {
         return new Spec(source,assertion,fault,List.copyOf(list),signature,explanation);
     }
     public static void validateSource(String source) {
+        if(source!=null && source.contains(ControlledScenarioSource.MARKER)){ControlledScenarioSource.validateSource(source);return;}
         var parsed=new JavaParser(new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_21)).parse(source);
         if(!parsed.isSuccessful() || parsed.getResult().isEmpty())throw bad("Generated Java syntax is invalid; no file was queued");
         var unit=parsed.getResult().orElseThrow();
@@ -75,7 +76,7 @@ public final class GeneratedReproduction {
         if(!fault || attempts<2 || !count || !assertion || !firstCharge || calls.stream().noneMatch(call->call.getNameAsString().equals("assertThrows")))throw bad("Required fault, retry, ledger count or assertion structure is missing");
     }
     public static Map<String,Object> overlay(Spec spec) {
-        return Map.of("path",PATH,"className",SELECTOR,"source",spec.testSource(),"sourceSha256",ContextDocuments.hash(spec.testSource()),"expectedFailureSignature",SIGNATURE);
+        return Map.of("path",PATH,"className",SELECTOR,"source",spec.testSource(),"sourceSha256",ContextDocuments.hash(spec.testSource()),"expectedFailureSignature",spec.expectedFailureSignature());
     }
     public static String exampleSource() {
         return """

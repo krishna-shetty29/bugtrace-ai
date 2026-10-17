@@ -1,0 +1,133 @@
+
+/* BUGTRACE_CONTROLLED_HARNESS_V1 */
+final class ControlledCheckoutScenario {
+    private static final java.util.concurrent.TimeUnit SECONDS = java.util.concurrent.TimeUnit.SECONDS;
+    private record Trial(int charges, boolean timedOut) {}
+
+    static void run(String scenario, int repetitions) throws Exception {
+        if (repetitions < 2 || repetitions > 30) throw new IllegalArgumentException("Repetitions must be 2-30");
+        int duplicates = 0, errors = 0, passes = 0, timeouts = 0;
+        java.util.List<Integer> counts = new java.util.ArrayList<>();
+        for (int i = 0; i < repetitions; i++) {
+            try {
+                Trial result = trial(scenario, "controlled-checkout-" + i);
+                if (result.charges() < 1) throw new IllegalStateException("No charge was recorded");
+                counts.add(result.charges());
+                if (result.charges() > 1) duplicates++; else passes++;
+                if (result.timedOut()) timeouts++;
+            } catch (Exception | AssertionError error) {
+                errors++;
+                counts.add(-1);
+                System.err.println("SCENARIO_TRIAL_ERROR " + scenario + " trial=" + i + " type=" + error.getClass().getName());
+            }
+        }
+        System.out.println("BUGTRACE_SCENARIO_REPORT "
+            + "{\"scenario\":\"" + scenario + "\",\"repetitions\":" + repetitions
+            + ",\"completed\":" + (repetitions - errors) + ",\"duplicates\":" + duplicates
+            + ",\"passes\":" + passes + ",\"errors\":" + errors + ",\"clientTimeouts\":" + timeouts
+            + ",\"chargeCounts\":" + counts + "}");
+        org.junit.jupiter.api.Assertions.assertEquals(0, errors, "BUGTRACE_SCENARIO_SETUP_ERRORS");
+        org.junit.jupiter.api.Assertions.assertEquals(0, duplicates, "BUGTRACE_SCENARIO_DUPLICATES");
+    }
+
+    private static Trial trial(String scenario, String checkoutId) throws Exception {
+        PaymentLedger ledger = new PaymentLedger();
+        boolean loseResponse = scenario.equals("RETRY_AFTER_RESPONSE_LOSS") || scenario.equals("CONCURRENT_RETRIES");
+        FakePaymentGateway gateway = new FakePaymentGateway(ledger, 0, loseResponse);
+        CheckoutService service = new CheckoutService(gateway, ledger);
+        CheckoutRequest request = new CheckoutRequest(checkoutId, "controlled-order", new java.math.BigDecimal("49.99"));
+        boolean timedOut = false;
+        switch (scenario) {
+            case "RETRY_AFTER_RESPONSE_LOSS" -> {
+                org.junit.jupiter.api.Assertions.assertThrows(PaymentGateway.ResponseLostException.class, () -> service.checkout(request));
+                org.junit.jupiter.api.Assertions.assertEquals(1, ledger.findAll().size(), "Charge must precede lost response");
+                paid(service.checkout(request));
+            }
+            case "RETRY_AFTER_COMPLETION" -> {
+                paid(service.checkout(request));
+                org.junit.jupiter.api.Assertions.assertEquals(1, ledger.findAll().size(), "Initial checkout must complete once");
+                paid(service.checkout(request));
+            }
+            case "DELAYED_RESPONSE" -> {
+                java.util.concurrent.CountDownLatch charged = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.CountDownLatch releaseResponse = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.CountDownLatch retryStarted = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.atomic.AtomicBoolean first = new java.util.concurrent.atomic.AtomicBoolean(true);
+                PaymentGateway delayed = (checkout, order, amount) -> {
+                    boolean initial = first.getAndSet(false);
+                    String payment = gateway.charge(checkout, order, amount);
+                    if (initial) {
+                        charged.countDown();
+                        await(releaseResponse);
+                    }
+                    return payment;
+                };
+                CheckoutService delayedService = new CheckoutService(delayed, ledger);
+                java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+                try {
+                    java.util.concurrent.Future<CheckoutResponse> initial = executor.submit(() -> delayedService.checkout(request));
+                    await(charged);
+                    org.junit.jupiter.api.Assertions.assertEquals(1, ledger.findAll().size(), "Charge recorded while response blocked");
+                    org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.TimeoutException.class,
+                        () -> initial.get(25, java.util.concurrent.TimeUnit.MILLISECONDS));
+                    org.junit.jupiter.api.Assertions.assertFalse(initial.isDone(), "Client wait must not cancel the request");
+                    timedOut = true;
+                    java.util.concurrent.Future<CheckoutResponse> retry = executor.submit(() -> {
+                        retryStarted.countDown();
+                        return delayedService.checkout(request);
+                    });
+                    await(retryStarted);
+                    releaseResponse.countDown();
+                    paid(initial.get(3, SECONDS));
+                    paid(retry.get(3, SECONDS));
+                } finally {
+                    releaseResponse.countDown();
+                    cleanup(executor);
+                }
+            }
+            case "CONCURRENT_RETRIES" -> {
+                org.junit.jupiter.api.Assertions.assertThrows(PaymentGateway.ResponseLostException.class, () -> service.checkout(request));
+                org.junit.jupiter.api.Assertions.assertEquals(1, ledger.findAll().size(), "Original charge must precede both retries");
+                java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+                java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+                java.util.concurrent.CyclicBarrier checkoutBoundary = new java.util.concurrent.CyclicBarrier(2);
+                java.util.concurrent.ExecutorService executor = java.util.concurrent.Executors.newFixedThreadPool(2);
+                try {
+                    java.util.concurrent.Callable<CheckoutResponse> task = () -> {
+                        ready.countDown();
+                        await(start);
+                        checkoutBoundary.await(3, SECONDS);
+                        return service.checkout(request);
+                    };
+                    java.util.concurrent.Future<CheckoutResponse> a = executor.submit(task);
+                    java.util.concurrent.Future<CheckoutResponse> b = executor.submit(task);
+                    await(ready);
+                    start.countDown();
+                    paid(a.get(4, SECONDS));
+                    paid(b.get(4, SECONDS));
+                } finally {
+                    start.countDown();
+                    cleanup(executor);
+                }
+            }
+            default -> throw new IllegalArgumentException("Unsupported controlled scenario");
+        }
+        long count = ledger.findAll().stream().filter(charge -> charge.checkoutId().equals(checkoutId)).count();
+        return new Trial(Math.toIntExact(count), timedOut);
+    }
+    private static void paid(CheckoutResponse response) {
+        org.junit.jupiter.api.Assertions.assertEquals("PAID", response.status());
+    }
+    private static void await(java.util.concurrent.CountDownLatch latch) {
+        try {
+            if (!latch.await(3, SECONDS)) throw new IllegalStateException("Controlled ordering latch timed out");
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Controlled ordering interrupted", error);
+        }
+    }
+    private static void cleanup(java.util.concurrent.ExecutorService executor) throws InterruptedException {
+        executor.shutdownNow();
+        if (!executor.awaitTermination(3, SECONDS)) throw new IllegalStateException("Scenario threads did not terminate");
+    }
+}

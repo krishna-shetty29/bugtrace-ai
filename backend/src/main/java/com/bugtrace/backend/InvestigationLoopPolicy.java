@@ -17,14 +17,14 @@ public final class InvestigationLoopPolicy {
         Return JSON only with exactly hypothesis, evidenceIds, experimentType, decision, explanation,
         missingEvidence. hypothesis/explanation are nonempty strings <=2000 characters each.
         evidenceIds cites supplied selected evidence IDs only, at least one. missingEvidence is an
-        array of at most 8 strings <=500 characters. experimentType must be RETRY_AFTER_RESPONSE_LOSS.
+        array of at most 8 strings <=500 characters. experimentType must equal supplied fixedScenario (default RETRY_AFTER_RESPONSE_LOSS).
+        Supported scenarios: RETRY_AFTER_RESPONSE_LOSS, DELAYED_RESPONSE, CONCURRENT_RETRIES, RETRY_AFTER_COMPLETION.
         decision is CONTINUE, FINISH or REQUEST_MORE_EVIDENCE. The first phase proposes a hypothesis
-        and the fixed retry experiment. The REVIEW phase updates the hypothesis using actualResult.
+        and the selected fixed experiment. The REVIEW phase updates the hypothesis using actualResult.
         Never call a compilation error, timeout, generic failure or proposed source a reproduced bug.
         An expected assertion is an observation, not a proven diagnosis or verified fix.
         If the intended failure was observed, FINISH. Continue only with a specific useful reason
-        grounded in the actual result; request more evidence when necessary. No other scenario is
-        supported here. Do not invent evidence, successful executions, durability or an applied patch.
+        grounded in the actual result; request more evidence when necessary. Only these four scenarios are supported here. Do not invent evidence, successful executions, durability or an applied patch.
         """;
     public record Limits(int maxExperiments,int maxJobs,int maxCalls,int maxOutputTokens,
         int totalExecutionSeconds,int perExecutionSeconds,int wallSeconds,int maxRepairs) {}
@@ -54,7 +54,7 @@ public final class InvestigationLoopPolicy {
         RoleToolPolicy.fields(node,"hypothesis","evidenceIds","experimentType","decision","explanation","missingEvidence");
         var result=json.treeToValue(node,Decision.class);
         if(!text(result.hypothesis(),2000)||!text(result.explanation(),2000)
-            ||!"RETRY_AFTER_RESPONSE_LOSS".equals(result.experimentType())
+            ||!ControlledScenarioSource.SCENARIOS.contains(String.valueOf(result.experimentType()))
             ||!Set.of("CONTINUE","FINISH","REQUEST_MORE_EVIDENCE").contains(result.decision())
             ||result.evidenceIds()==null||result.evidenceIds().isEmpty()||result.evidenceIds().size()>8
             ||new HashSet<>(result.evidenceIds()).size()!=result.evidenceIds().size()||!ids.containsAll(result.evidenceIds())
