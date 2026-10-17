@@ -32,7 +32,7 @@ class HypothesisOutputTest {
     }
     @Test void mockAnalyzerOutputIsExplicitlySynthetic() throws Exception {
         var response = new MockAiProvider().generate(new AiProvider.Request("mock-v1", EvidenceAnalyzerController.INSTRUCTIONS, "{}", 1500));
-        assertTrue(HypothesisOutput.parse(response.text(), Set.of()).hypothesis().startsWith("MOCK"));
+        assertTrue(HypothesisValidation.validate(response.text(), java.util.List.of()).hypothesis().startsWith("MOCK"));
         assertEquals("MOCK_NOT_MEASURED", response.usage().kind());
     }
 }

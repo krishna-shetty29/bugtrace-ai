@@ -7,6 +7,8 @@ public final class MockAiProvider implements AiProvider {
             String output = """
                 {"hypothesis":"MOCK — insufficient evidence is deliberately reported by this integration fixture.",
                  "evidenceIds":[],
+                 "experimentType":"REQUEST_MORE_EVIDENCE",
+                 "fileReferences":[],
                  "suggestedExperiment":"Manually inspect selected payment, retry and test evidence before proposing a real experiment.",
                  "missingEvidence":["Mock output is synthetic and does not diagnose the selected repository."]}
                 """;
