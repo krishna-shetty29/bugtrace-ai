@@ -41,6 +41,9 @@ public class AiCallService {
     Map<String,Object> submitHypothesis(UUID investigation,Submission submission){
         return submitVersioned(investigation, submission, EvidenceAnalyzerController.VERSION, EvidenceAnalyzerController.INSTRUCTIONS, 10000);
     }
+    Map<String,Object> submitRole(UUID investigation,Submission submission,AgentRolePolicy.Role role){
+        return submitVersioned(investigation,submission,AgentRolePolicy.VERSION+":"+role.name(),AgentRolePolicy.instructions(role),10000);
+    }
     private Map<String,Object> submitVersioned(UUID investigation,Submission submission,String promptVersion,String instructions,int questionLimit){
         if(submission==null||submission.clientRequestId()==null||submission.question()==null||submission.question().isBlank()||submission.question().length()>questionLimit)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Supply a request UUID, a nonempty report within the operation limit and selected evidence");
         var selected=evidence.resolve(investigation,submission.evidence());UUID id=submission.clientRequestId();

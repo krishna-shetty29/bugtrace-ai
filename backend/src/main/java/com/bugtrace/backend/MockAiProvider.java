@@ -3,6 +3,13 @@ package com.bugtrace.backend;
 /** Deterministic plumbing check; never contacts a model or pretends to diagnose the bug. */
 public final class MockAiProvider implements AiProvider {
     @Override public Response generate(Request request){
+        if (request.instructions().startsWith("You are a bounded role coordinated by backend Java code.")) {
+            return new Response("mock-v1","mock-role", """
+                {"summary":"MOCK — role plumbing only; no real diagnosis, generated artifact or verified fix.",
+                 "evidenceIds":[],"missingEvidence":["Use real retrieved evidence and actual execution results for a useful proposal."],
+                 "testDraft":"","patchDraft":"","checks":[],"experimentType":"REQUEST_MORE_EVIDENCE"}
+                """,new Usage(null,null,null,"MOCK_NOT_MEASURED"),false);
+        }
         if (request.instructions().equals(EvidenceAnalyzerController.INSTRUCTIONS)) {
             String output = """
                 {"hypothesis":"MOCK — insufficient evidence is deliberately reported by this integration fixture.",
