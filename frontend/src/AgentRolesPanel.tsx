@@ -1,10 +1,11 @@
 import { useState } from 'react'
+import RoleToolsPanel from './RoleToolsPanel'
 
 type Ref = { kind: string; indexId: string; chunkKey: string | null; chunkNumber: number | null }
-type Evidence = { id: string; reference: Ref; origin: string; sourceRef: string; text: string }
+type Evidence = { id: string; reference: Ref; origin: string; sourceRef: string; startLine: number; endLine: number; text: string }
 type Execution = { execution_id: string; classification: string; operation: string }
 type Step = { role: string; state: string; call_id: string; error_message?: string; output?: { summary: string; evidenceIds: string[]; missingEvidence: string[]; testDraft: string; patchDraft: string; checks: string[] } }
-type Run = { id: string; state: string; next_role: number; used_calls: number; max_calls: number; max_output_tokens: number; reserved_output_tokens: number; deadline: string; notice: string; error_message?: string; steps: Step[]; roles: string[]; execution_results: unknown }
+type Run = { id: string; state: string; next_role: number; used_calls: number; max_calls: number; max_output_tokens: number; reserved_output_tokens: number; deadline: string; execution_tools_enabled: boolean; used_tool_calls: number; evidence_refs: Ref[]; notice: string; error_message?: string; steps: Step[]; roles: string[]; execution_results: unknown }
 type Saved = { id: string; state: string }
 const roles = [
   ['Investigation coordinator', 'Java backend controls order, reservations, deadline and stored state.'],
@@ -57,6 +58,8 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
         setRun(loaded); setRunId(loaded.id)
       } else if (kind === 'advance' && run) {
         setRun(await api<Run>(`/agent-runs/${run.id}/advance`, { expectedRole: run.next_role }))
+      } else if (kind === 'finish' && run) {
+        setRun(await api<Run>(`/agent-runs/${run.id}/finish-verification`, {}))
       } else if (kind === 'stop' && run) {
         setRun(await api<Run>(`/agent-runs/${run.id}/stop`, {}))
       }
@@ -65,7 +68,7 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
   }
   return <section>
     <h2>Bounded agent roles</h2>
-    <p>One backend coordinates sequential roles. Tests and patches remain unvalidated text drafts. No worker job is created here.</p>
+    <p>One backend coordinates sequential roles. Tests and patches remain unvalidated text drafts. Approved role tools can queue existing baseline checks after execution tools are enabled for the run.</p>
     <table><thead><tr><th>Role</th><th>Responsibility</th></tr></thead><tbody>{roles.map(([name, description]) => <tr key={name}><td>{name}</td><td>{description}</td></tr>)}</tbody></table>
     <button disabled={busy} onClick={() => void action('load')}>Load role settings and evidence</button>
     <p>Provider: {provider}. Live advances may incur API charges. Configured output limit: {perCall} tokens per call.</p>
@@ -81,8 +84,10 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
     {error && <p role="alert">{error}</p>}
     {run && <div><h3>{run.state}</h3><p>{run.notice}</p><p>Calls reserved: {run.used_calls}/{run.max_calls}. Output tokens reserved: {run.reserved_output_tokens}/{run.max_output_tokens}. Deadline: {run.deadline}</p>{run.error_message && <p>{run.error_message}</p>}
       <button disabled={busy || run.state !== 'READY'} onClick={() => void action('advance')}>{busy ? 'Working…' : `Advance: ${run.roles[run.next_role] ?? 'No next role'}`}</button>{' '}
-      <button disabled={busy || run.state !== 'READY'} onClick={() => void action('stop')}>Stop between roles</button>
+      <button disabled={busy || !['READY', 'TOOL_REVIEW'].includes(run.state)} onClick={() => void action('stop')}>Stop between roles</button>
+      {run.state === 'TOOL_REVIEW' && <button disabled={busy} onClick={() => void action('finish')}>Finish verification review</button>}
       <p>One advance requests one role. Refreshing only reads saved state. A running call cannot be cancelled by this panel.</p>
+      <RoleToolsPanel key={`${run.id}:${run.next_role}`} investigationId={investigationId} runId={run.id} role={run.next_role} state={run.state} executionEnabled={run.execution_tools_enabled} sources={evidence.filter(item => run.evidence_refs.some(ref => ref.kind === item.reference.kind && ref.indexId === item.reference.indexId && ref.chunkKey === item.reference.chunkKey && ref.chunkNumber === item.reference.chunkNumber))} executionIds={Array.isArray(run.execution_results) ? (run.execution_results as { executionId: string }[]).map(item => item.executionId) : []} />
       <details><summary>Actual execution evidence, separate from model proposals</summary><pre>{JSON.stringify(run.execution_results, null, 2)}</pre></details>
       {run.steps.map(step => <article key={step.role}><h4>{step.role}: {step.state}</h4><p>Saved model call: <code>{step.call_id}</code></p>{step.error_message && <p>{step.error_message}</p>}{step.output && <><p>{step.output.summary}</p><p>Evidence IDs: {step.output.evidenceIds.join(', ') || 'None — insufficient evidence'}</p><p>Missing evidence: {step.output.missingEvidence.join('; ') || 'None declared by model'}</p>{step.output.testDraft && <details><summary>Uncompiled test draft — not executed</summary><pre>{step.output.testDraft}</pre></details>}{step.output.patchDraft && <details><summary>Unapplied patch draft — not verified</summary><pre>{step.output.patchDraft}</pre></details>}<p>Proposed checks: {step.output.checks.join(', ') || 'None'}</p></>}</article>)}
     </div>}

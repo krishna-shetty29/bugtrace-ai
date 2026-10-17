@@ -21,11 +21,12 @@ public class AgentWorkflowService {
     private final AiEvidenceService evidence;
     private final AiSettings settings;
     private final TransactionTemplate transactions;
+    private final RoleToolGateway tools;
     private final JsonMapper json=JsonMapper.builder().build();
     public AgentWorkflowService(JdbcTemplate jdbc,AiCallService calls,AiEvidenceService evidence,
-        AiSettings settings,PlatformTransactionManager manager) {
+        AiSettings settings,PlatformTransactionManager manager,RoleToolGateway tools) {
         this.jdbc=jdbc;this.calls=calls;this.evidence=evidence;this.settings=settings;
-        this.transactions=new TransactionTemplate(manager);
+        this.transactions=new TransactionTemplate(manager);this.tools=tools;
     }
     public List<Map<String,Object>> options(UUID investigation) {
         return jdbc.queryForList("""
@@ -45,7 +46,7 @@ public class AgentWorkflowService {
         var steps=jdbc.queryForList("SELECT * FROM agent_role_steps WHERE run_id=? ORDER BY role_number",run);
         for(var step:steps)if(step.get("output")!=null)step.put("output",json.readTree(step.get("output").toString()));
         result.put("steps",steps);result.put("roles",AgentRolePolicy.Role.values());
-        result.put("notice","Draft-only role workflow. No generated test was run, no patch was applied, and no fix is verified.");
+        result.put("notice","Generated artifacts stay drafts. Approved tool requests may run existing baseline checks; no generated patch is applied or verified.");
         return result;
     }
     public Map<String,Object> create(UUID investigation,Create input) {
@@ -69,8 +70,8 @@ public class AgentWorkflowService {
             if(reports.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Investigation not found");
             var report=reports.getFirst();
             // No background coordinator: idle expired runs release their active slot on the next create.
-            jdbc.update("UPDATE agent_runs SET state='BUDGET_EXHAUSTED',error_message='Deadline expired',updated_at=clock_timestamp() WHERE investigation_id=? AND state='READY' AND deadline<=clock_timestamp()",investigation);
-            if(!jdbc.queryForList("SELECT id FROM agent_runs WHERE investigation_id=? AND state IN ('READY','RUNNING')",investigation).isEmpty())throw conflict("This investigation already has an active role run; finish it or stop it first");
+            jdbc.update("UPDATE agent_runs SET state='BUDGET_EXHAUSTED',error_message='Deadline expired',updated_at=clock_timestamp() WHERE investigation_id=? AND state IN ('READY','TOOL_REVIEW') AND deadline<=clock_timestamp()",investigation);
+            if(!jdbc.queryForList("SELECT id FROM agent_runs WHERE investigation_id=? AND state IN ('READY','RUNNING','TOOL_REVIEW')",investigation).isEmpty())throw conflict("This investigation already has an active role run; finish it or stop it first");
             var results=new ArrayList<Map<String,Object>>();
             for(UUID id:input.executionIds()) {
                 var jobs=jdbc.queryForList("""
@@ -98,8 +99,27 @@ public class AgentWorkflowService {
     }
     public Map<String,Object> stop(UUID investigation,UUID run) {
         row(investigation,run,false);
-        int changed=jdbc.update("UPDATE agent_runs SET state='INTERRUPTED',error_message='Stopped between roles by user',updated_at=clock_timestamp() WHERE id=? AND state='READY'",run);
+        int changed=jdbc.update("UPDATE agent_runs SET state='INTERRUPTED',error_message='Stopped between roles by user',updated_at=clock_timestamp() WHERE id=? AND state IN ('READY','TOOL_REVIEW')",run);
         if(changed==0)throw conflict("Stop is available only between roles; an in-flight model call is not cancelled");
+        return get(investigation,run);
+    }
+    public Map<String,Object> finishVerification(UUID investigation,UUID run) {
+        transactions.execute(status->{
+            var saved=row(investigation,run,true);
+            if(!"TOOL_REVIEW".equals(saved.get("state")))throw conflict("Run is not waiting for verification-tool review");
+            if(instant(saved.get("deadline")).isBefore(Instant.now())) {
+                jdbc.update("UPDATE agent_runs SET state='BUDGET_EXHAUSTED',updated_at=clock_timestamp() WHERE id=?",run);return null;
+            }
+            tools.refreshExecutions(investigation,run,saved);
+            int summaries=jdbc.queryForObject("""
+                SELECT count(*) FROM role_tool_calls t WHERE run_id=? AND role='VERIFICATION_AGENT'
+                AND tool='createVerificationSummary' AND state='SUCCEEDED'
+                AND created_at>(SELECT max(created_at) FROM role_tool_calls WHERE run_id=? AND execution_id IS NOT NULL)
+                """,Integer.class,run,run);
+            if(summaries<1)throw conflict("Read completed reports and create a verification summary after the latest requested check before finishing");
+            jdbc.update("UPDATE agent_runs SET state=?,next_role=5,updated_at=clock_timestamp() WHERE id=?",settings.provider().equals("mock")?"MOCK_COMPLETE":"REVIEW_REQUIRED",run);
+            return null;
+        });
         return get(investigation,run);
     }
     public Map<String,Object> advance(UUID investigation,UUID run,int expectedRole) {
@@ -115,6 +135,7 @@ public class AgentWorkflowService {
                 jdbc.update("UPDATE agent_runs SET state='BUDGET_EXHAUSTED',error_message='Call, output-token reservation, or deadline budget exhausted',updated_at=clock_timestamp() WHERE id=?",run);
                 return null;
             }
+            tools.refreshExecutions(investigation,run,saved);
             if(role==AgentRolePolicy.Role.DIAGNOSIS_AGENT || role==AgentRolePolicy.Role.VERIFICATION_AGENT) {
                 var actual=json.readTree(saved.get("execution_results").toString());
                 boolean failure=false;for(var item:actual)if("ASSERTION_FAILED".equals(item.path("classification").asString()))failure=true;
@@ -146,16 +167,25 @@ public class AgentWorkflowService {
             }
             var input=new LinkedHashMap<String,Object>();input.put("report",json.readTree(reserved.get("report").toString()));
             input.put("previousRoleProposals",handoffs);input.put("actualRecordedExecutions",json.readTree(reserved.get("execution_results").toString()));
+            input.put("roleTools",RoleToolPolicy.tools(role));input.put("executionToolsEnabled",reserved.get("execution_tools_enabled"));
+            input.put("toolResults",tools.handoff(investigation,run));
             var call=calls.submitRole(investigation,new AiCallService.Submission(callId,json.writeValueAsString(input),refs),role);
             if(!"SUCCEEDED".equals(call.get("state")))throw new IllegalArgumentException("Model call did not complete. Inspect saved call "+callId);
             var ids=new HashSet<String>();for(var item:json.readTree(json.writeValueAsString(call.get("input_evidence"))))ids.add(item.get("id").asString());
             var output=AgentRoleOutput.parse((String)call.get("response_text"),role,ids);
             String state=(next==4 ? (settings.provider().equals("mock")?"MOCK_COMPLETE":"REVIEW_REQUIRED") : "READY");
             if(!settings.provider().equals("mock") && output.evidenceIds().isEmpty())state="NEEDS_EVIDENCE";
-            String finalState=state;
+            int toolIndex=0;
+            for(var request:output.toolRequests()) {
+                var audited=tools.model(investigation,run,callId,next,toolIndex++,request.tool(),request.arguments());
+                if(!"SUCCEEDED".equals(audited.get("state")))state="NEEDS_EVIDENCE";
+            }
+            if(next==4 && jdbc.queryForObject("SELECT count(*) FROM role_tool_calls WHERE run_id=? AND role_number=4 AND execution_id IS NOT NULL",Integer.class,run)>0
+                && !"NEEDS_EVIDENCE".equals(state))state="TOOL_REVIEW";
+            String finalState=state;int nextRole=state.equals("TOOL_REVIEW")?4:next+1;
             transactions.execute(status->{
                 jdbc.update("UPDATE agent_role_steps SET state='VALIDATED',output=CAST(? AS jsonb),finished_at=clock_timestamp() WHERE run_id=? AND role_number=?",json.writeValueAsString(output),run,next);
-                jdbc.update("UPDATE agent_runs SET state=CASE WHEN deadline<clock_timestamp() THEN 'BUDGET_EXHAUSTED' ELSE ? END,next_role=?,updated_at=clock_timestamp() WHERE id=? AND state='RUNNING'",finalState,next+1,run);
+                jdbc.update("UPDATE agent_runs SET state=CASE WHEN deadline<clock_timestamp() THEN 'BUDGET_EXHAUSTED' ELSE ? END,next_role=?,updated_at=clock_timestamp() WHERE id=? AND state='RUNNING'",finalState,nextRole,run);
                 return null;
             });
         } catch(Exception ex) {

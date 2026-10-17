@@ -7,7 +7,7 @@ public final class MockAiProvider implements AiProvider {
             return new Response("mock-v1","mock-role", """
                 {"summary":"MOCK — role plumbing only; no real diagnosis, generated artifact or verified fix.",
                  "evidenceIds":[],"missingEvidence":["Use real retrieved evidence and actual execution results for a useful proposal."],
-                 "testDraft":"","patchDraft":"","checks":[],"experimentType":"REQUEST_MORE_EVIDENCE"}
+                 "testDraft":"","patchDraft":"","checks":[],"experimentType":"REQUEST_MORE_EVIDENCE","toolRequests":[]}
                 """,new Usage(null,null,null,"MOCK_NOT_MEASURED"),false);
         }
         if (request.instructions().equals(EvidenceAnalyzerController.INSTRUCTIONS)) {
