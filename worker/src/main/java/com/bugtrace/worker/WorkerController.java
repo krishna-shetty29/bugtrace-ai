@@ -19,8 +19,13 @@ public class WorkerController {
         @NotNull UUID snapshotId,
         @NotNull Operation operation,
         @Size(max = 200) String testSelector,
-        @Min(1) @Max(600) int timeoutSeconds
-    ) {}
+        @Min(1) @Max(600) int timeoutSeconds,
+        GeneratedTestOverlay.Payload generatedTest
+    ) {
+        public JobRequest(UUID executionId,UUID snapshotId,Operation operation,String testSelector,int timeoutSeconds) {
+            this(executionId,snapshotId,operation,testSelector,timeoutSeconds,null);
+        }
+    }
 
     @PostMapping
     public ResponseEntity<WorkerService.Result> submit(@Valid @RequestBody JobRequest request) {

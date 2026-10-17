@@ -46,17 +46,17 @@ public class AgentWorkflowService {
         var steps=jdbc.queryForList("SELECT * FROM agent_role_steps WHERE run_id=? ORDER BY role_number",run);
         for(var step:steps)if(step.get("output")!=null)step.put("output",json.readTree(step.get("output").toString()));
         result.put("steps",steps);result.put("roles",AgentRolePolicy.Role.values());
-        result.put("notice","Generated artifacts stay drafts. Approved tool requests may run existing baseline checks; no generated patch is applied or verified.");
+        result.put("notice","Generic artifacts stay drafts; the reproduction workbench can run generated tests in fresh experiments. No patch is applied or verified.");
         return result;
     }
     public Map<String,Object> create(UUID investigation,Create input) {
         if(settings.provider().equals("openai") && (settings.model().equals("mock-v1") || settings.credential()==null || settings.credential().isBlank()))
             throw bad("Configure a live model and backend credential, or restart with provider mock and model mock-v1");
-        if(input==null || input.runId()==null || input.maxCalls()<1 || input.maxCalls()>5
+        if(input==null || input.runId()==null || input.maxCalls()<1 || input.maxCalls()>8
             || input.maxOutputTokens()<settings.maxOutput() || input.maxOutputTokens()>20000
             || input.deadlineSeconds()<60 || input.deadlineSeconds()>3600
             || input.executionIds()==null || input.executionIds().size()>5
-            || new HashSet<>(input.executionIds()).size()!=input.executionIds().size())throw bad("Use a UUID, 1–5 calls, output-token budget at least the configured per-call limit (max 20000), 60–3600 seconds, and at most five unique execution IDs");
+            || new HashSet<>(input.executionIds()).size()!=input.executionIds().size())throw bad("Use a UUID, 1–8 calls, output-token budget at least the configured per-call limit (max 20000), 60–3600 seconds, and at most five unique execution IDs");
         String hash=ContextDocuments.hash(json.writeValueAsString(input));
         var existing=jdbc.queryForList("SELECT id FROM agent_runs WHERE id=?",input.runId());
         if(!existing.isEmpty()) {
@@ -136,6 +136,7 @@ public class AgentWorkflowService {
                 return null;
             }
             tools.refreshExecutions(investigation,run,saved);
+            if(role==AgentRolePolicy.Role.REPRODUCTION_AGENT && !jdbc.queryForList("SELECT id FROM reproduction_runs WHERE agent_run_id=? AND state IN ('GENERATING','DRAFT_READY','COMPILE_ERROR','QUEUED')",run).isEmpty())throw conflict("Finish or abandon the generated reproduction before advancing this role");
             if(role==AgentRolePolicy.Role.DIAGNOSIS_AGENT || role==AgentRolePolicy.Role.VERIFICATION_AGENT) {
                 var actual=json.readTree(saved.get("execution_results").toString());
                 boolean failure=false;for(var item:actual)if("ASSERTION_FAILED".equals(item.path("classification").asString()))failure=true;

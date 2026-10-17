@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import RoleToolsPanel from './RoleToolsPanel'
+import GeneratedReproductionPanel from './GeneratedReproductionPanel'
 
 type Ref = { kind: string; indexId: string; chunkKey: string | null; chunkNumber: number | null }
 type Evidence = { id: string; reference: Ref; origin: string; sourceRef: string; startLine: number; endLine: number; text: string }
@@ -26,8 +27,8 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
   const [runId, setRunId] = useState<string>(() => crypto.randomUUID())
   const [provider, setProvider] = useState('Load settings first')
   const [perCall, setPerCall] = useState(1500)
-  const [maxCalls, setMaxCalls] = useState(5)
-  const [maxTokens, setMaxTokens] = useState(7500)
+  const [maxCalls, setMaxCalls] = useState(8)
+  const [maxTokens, setMaxTokens] = useState(12000)
   const [deadline, setDeadline] = useState(1800)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -50,7 +51,7 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
         ])
         setEvidence(items); setExecutions(options); setSaved(runs)
         setProvider(`${config.provider} / ${config.model}`); setPerCall(config.maxOutputTokens)
-        setMaxTokens(config.maxOutputTokens * 5)
+        setMaxTokens(Math.min(20000, config.maxOutputTokens * 8))
       } else if (kind === 'create') {
         setRun(await api<Run>('/agent-runs', { runId, evidence: evidence.filter(item => selected.includes(item.id)).map(item => item.reference), executionIds: chosenExecutions, maxCalls, maxOutputTokens: maxTokens, deadlineSeconds: deadline }))
       } else if (kind === 'get') {
@@ -68,13 +69,13 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
   }
   return <section>
     <h2>Bounded agent roles</h2>
-    <p>One backend coordinates sequential roles. Tests and patches remain unvalidated text drafts. Approved role tools can queue existing baseline checks after execution tools are enabled for the run.</p>
+    <p>One backend coordinates sequential roles. Generic tool artifacts stay drafts; the reproduction workbench can run generated tests in fresh experiments. Approved role tools can queue existing baseline checks after execution tools are enabled for the run.</p>
     <table><thead><tr><th>Role</th><th>Responsibility</th></tr></thead><tbody>{roles.map(([name, description]) => <tr key={name}><td>{name}</td><td>{description}</td></tr>)}</tbody></table>
     <button disabled={busy} onClick={() => void action('load')}>Load role settings and evidence</button>
     <p>Provider: {provider}. Live advances may incur API charges. Configured output limit: {perCall} tokens per call.</p>
     <details><summary>Selected evidence ({selected.length}/8)</summary>{evidence.map(item => <div key={item.id}><label><input type="checkbox" disabled={busy || (!selected.includes(item.id) && selected.length >= 8)} checked={selected.includes(item.id)} onChange={event => setSelected(event.target.checked ? [...selected, item.id] : selected.filter(id => id !== item.id))} /> {item.origin} · {item.sourceRef}</label><details><summary>View snippet</summary><pre>{item.text}</pre></details></div>)}</details>
     <details><summary>Actual saved executions ({chosenExecutions.length}/5)</summary>{executions.length === 0 && <p>No completed executions for this investigation and snapshot. Run the existing reproduction using your execution page first for a live diagnosis.</p>}{executions.map(item => <p key={item.execution_id}><label><input type="checkbox" disabled={busy || (!chosenExecutions.includes(item.execution_id) && chosenExecutions.length >= 5)} checked={chosenExecutions.includes(item.execution_id)} onChange={event => setChosenExecutions(event.target.checked ? [...chosenExecutions, item.execution_id] : chosenExecutions.filter(id => id !== item.execution_id))} /> {item.execution_id} · {item.operation} · {item.classification}</label></p>)}</details>
-    <label>Maximum role calls<input type="number" min={1} max={5} value={maxCalls} onChange={event => setMaxCalls(Number(event.target.value))} /></label>
+    <label>Maximum role calls<input type="number" min={1} max={8} value={maxCalls} onChange={event => setMaxCalls(Number(event.target.value))} /></label>
     <label>Output-token reservation budget<input type="number" min={perCall} max={20000} value={maxTokens} onChange={event => setMaxTokens(Number(event.target.value))} /></label>
     <label>Run deadline in seconds, including time between clicks<input type="number" min={60} max={3600} value={deadline} onChange={event => setDeadline(Number(event.target.value))} /></label>
     <p>Run UUID: <code>{runId}</code></p>
@@ -87,6 +88,7 @@ export default function AgentRolesPanel({ investigationId }: { investigationId: 
       <button disabled={busy || !['READY', 'TOOL_REVIEW'].includes(run.state)} onClick={() => void action('stop')}>Stop between roles</button>
       {run.state === 'TOOL_REVIEW' && <button disabled={busy} onClick={() => void action('finish')}>Finish verification review</button>}
       <p>One advance requests one role. Refreshing only reads saved state. A running call cannot be cancelled by this panel.</p>
+      <GeneratedReproductionPanel key={"generated-" + run.id} investigationId={investigationId} runId={run.id} role={run.next_role} runState={run.state} />
       <RoleToolsPanel key={`${run.id}:${run.next_role}`} investigationId={investigationId} runId={run.id} role={run.next_role} state={run.state} executionEnabled={run.execution_tools_enabled} sources={evidence.filter(item => run.evidence_refs.some(ref => ref.kind === item.reference.kind && ref.indexId === item.reference.indexId && ref.chunkKey === item.reference.chunkKey && ref.chunkNumber === item.reference.chunkNumber))} executionIds={Array.isArray(run.execution_results) ? (run.execution_results as { executionId: string }[]).map(item => item.executionId) : []} />
       <details><summary>Actual execution evidence, separate from model proposals</summary><pre>{JSON.stringify(run.execution_results, null, 2)}</pre></details>
       {run.steps.map(step => <article key={step.role}><h4>{step.role}: {step.state}</h4><p>Saved model call: <code>{step.call_id}</code></p>{step.error_message && <p>{step.error_message}</p>}{step.output && <><p>{step.output.summary}</p><p>Evidence IDs: {step.output.evidenceIds.join(', ') || 'None — insufficient evidence'}</p><p>Missing evidence: {step.output.missingEvidence.join('; ') || 'None declared by model'}</p>{step.output.testDraft && <details><summary>Uncompiled test draft — not executed</summary><pre>{step.output.testDraft}</pre></details>}{step.output.patchDraft && <details><summary>Unapplied patch draft — not verified</summary><pre>{step.output.patchDraft}</pre></details>}<p>Proposed checks: {step.output.checks.join(', ') || 'None'}</p></>}</article>)}

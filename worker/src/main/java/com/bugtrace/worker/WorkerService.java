@@ -27,7 +27,8 @@ public class WorkerService {
         String classification;
         String imageId;
         Instant started;
-        boolean oomKilled, stdoutTruncated, stderrTruncated;
+        boolean oomKilled, stdoutTruncated, stderrTruncated, snapshotVerifiedAfter;
+        String installedSourceSha256, experimentContentHash;
         final List<Map<String, Object>> stages = new ArrayList<>();
         String container;
         Process process;
@@ -69,6 +70,10 @@ public class WorkerService {
             return execution.result();
         }
         if (!job.snapshotId().toString().equals(snapshotId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Snapshot not registered");
+        if(job.generatedTest()!=null) {
+            GeneratedTestOverlay.validate(job.generatedTest());
+            if(job.operation()!=Operation.RUN_SELECTED_TEST || !GeneratedTestOverlay.CLASS.equals(job.testSelector()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Generated overlay requires its exact selected test");
+        }
         try { MavenCommands.arguments(job.operation(), job.testSelector(), Path.of("pom.xml")); }
         catch (IllegalArgumentException exception) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage()); }
         if (executions.size() >= 100 || !slots.tryAcquire()) throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Worker capacity reached");
@@ -114,6 +119,10 @@ public class WorkerService {
                 SnapshotFiles.requireRealPath(oldReports);
                 deleteCache(oldReports);
             }
+            if(e.job.generatedTest()!=null) {
+                e.installedSourceSha256=GeneratedTestOverlay.install(e.experiment,e.job.generatedTest());
+                e.experimentContentHash=SnapshotFiles.hash(e.experiment);
+            }
             copyCache(e, deadline);
             // Dependency/class preparation executes plugins only inside the restricted container.
             int code = stage(e, List.of("test-compile"), deadline);
@@ -137,6 +146,10 @@ public class WorkerService {
             catch (Exception exception) { terminal = "ERROR"; synchronized (e) { e.error = "Container cleanup failed: " + exception.getMessage(); } }
             try { if (e.cache != null) deleteCache(e.cache); }
             catch (Exception exception) { terminal = "ERROR"; synchronized (e) { e.error = "Cache cleanup failed: " + exception.getMessage(); } }
+            try {
+                e.snapshotVerifiedAfter=SnapshotFiles.hash(base).equals(hash);
+                if(!e.snapshotVerifiedAfter){terminal="ERROR";e.error="Immutable base changed during execution";}
+            }catch(Exception snapshotError){terminal="ERROR";e.error="Could not verify immutable base after execution";}
             // Persist evidence before publishing a terminal API state.
             synchronized (e) {
                 if (cancelled(e) && !terminal.equals("ERROR")) terminal = "CANCELLED";
@@ -246,6 +259,17 @@ public class WorkerService {
         metadata.put("executionId", e.job.executionId().toString());
         metadata.put("snapshotId", e.job.snapshotId().toString());
         metadata.put("snapshotContentHash", hash);
+        metadata.put("snapshotVerifiedAfter",e.snapshotVerifiedAfter);
+        metadata.put("experimentWorkspace",e.experiment==null?null:e.experiment.toString());
+        if(e.job.generatedTest()!=null) {
+            var overlay=new LinkedHashMap<String,Object>();
+            overlay.put("path",e.job.generatedTest().path());overlay.put("className",e.job.generatedTest().className());
+            overlay.put("requestedSourceSha256",e.job.generatedTest().sourceSha256());overlay.put("installedSourceSha256",e.installedSourceSha256);
+            overlay.put("experimentContentHashBeforeBuild",e.experimentContentHash);
+            boolean unchanged=false;
+            if(e.installedSourceSha256!=null)try{unchanged=e.installedSourceSha256.equals(ExecutionEvidence.sha256(e.experiment.resolve(e.job.generatedTest().path())));}catch(Exception ignored){}
+            overlay.put("unchangedAfterRun",unchanged);metadata.put("generatedTest",overlay);
+        }
         metadata.put("operation", e.job.operation().name());
         metadata.put("selectedTest", e.job.testSelector());
         metadata.put("imageIdentifier", image);

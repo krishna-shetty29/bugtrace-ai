@@ -40,6 +40,13 @@ public class DurableQueueService {
     }
 
     @Transactional
+    public Map<String,Object> enqueueGenerated(UUID investigation,GeneratedReproduction.Spec spec,int timeout) {
+        GeneratedReproduction.validateSource(spec.testSource());
+        var job=enqueue(investigation,new QueueContracts.CreateJob(QueueContracts.Operation.RUN_SELECTED_TEST,GeneratedReproduction.SELECTOR,timeout));
+        jdbc.update("UPDATE execution_jobs SET generated_test=CAST(? AS jsonb) WHERE id=?",json(GeneratedReproduction.overlay(spec)),job.get("executionId"));
+        return job;
+    }
+    @Transactional
     public Map<String,Object> claim(Claim request) {
         // Serialize simultaneous requests from the same named laptop worker.
         Boolean locked = jdbc.queryForObject("SELECT pg_try_advisory_xact_lock(hashtext(?))", Boolean.class, request.workerId());
@@ -56,7 +63,7 @@ public class DurableQueueService {
             WHERE id=(SELECT id FROM execution_jobs
                 WHERE queue_state='QUEUED' AND snapshot_id=? AND attempts<max_attempts
                 ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id,snapshot_id,operation,test_selector,timeout_seconds,attempts
+            RETURNING id,snapshot_id,operation,test_selector,timeout_seconds,attempts,generated_test
             """, request.workerId(), token, attempt, request.snapshotId());
         if (claimed.isEmpty()) return null;
         var row = claimed.getFirst();
@@ -75,6 +82,7 @@ public class DurableQueueService {
         result.put("operation", row.get("operation")); result.put("testSelector", row.get("test_selector"));
         result.put("timeoutSeconds", row.get("timeout_seconds")); result.put("attempt", row.get("attempts"));
         result.put("leaseSeconds", 45);
+        result.put("generatedTest",row.get("generated_test")==null?null:mapper.readTree(row.get("generated_test").toString()));
         return result;
     }
 

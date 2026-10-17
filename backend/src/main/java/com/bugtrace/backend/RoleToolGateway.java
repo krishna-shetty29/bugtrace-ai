@@ -48,7 +48,7 @@ public class RoleToolGateway {
                 var item=new LinkedHashMap<String,Object>();item.put("executionId",job.get("id"));item.put("operation",job.get("operation"));
                 item.put("selectedTest",job.get("test_selector"));item.put("queueState",job.get("queue_state"));
                 item.put("classification",metadata.path("classification").asString("UNAVAILABLE"));item.put("exitCode",metadata.get("exitCode"));
-                item.put("scope","Actual tool-requested baseline execution; no generated patch installed");actual.add(item);
+                item.put("scope",metadata.has("generatedTest")?"Actual generated-test experiment; no production patch applied":"Actual tool-requested baseline execution; no generated patch installed");if(metadata.has("generatedTest"))item.put("generatedTest",metadata.get("generatedTest"));actual.add(item);
             }
         }
         String results=json.writeValueAsString(actual);

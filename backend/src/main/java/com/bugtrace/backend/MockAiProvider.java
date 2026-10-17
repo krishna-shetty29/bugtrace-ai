@@ -3,6 +3,14 @@ package com.bugtrace.backend;
 /** Deterministic plumbing check; never contacts a model or pretends to diagnose the bug. */
 public final class MockAiProvider implements AiProvider {
     @Override public Response generate(Request request){
+        if(request.instructions().equals(GeneratedReproduction.INSTRUCTIONS)) {
+            var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
+            var ids=new java.util.ArrayList<String>();
+            for(var item:mapper.readTree(request.input()).path("evidence"))if(ids.size()<4)ids.add(item.get("id").asString());
+            var spec=new GeneratedReproduction.Spec(GeneratedReproduction.exampleSource(),GeneratedReproduction.ASSERTION,
+                GeneratedReproduction.FAULT,ids,GeneratedReproduction.SIGNATURE,"MOCK deterministic test draft for the trusted fixture; only actual execution can establish its result.");
+            return new Response("mock-v1","mock-generated-reproduction",mapper.writeValueAsString(spec),new Usage(null,null,null,"MOCK_NOT_MEASURED"),false);
+        }
         if (request.instructions().startsWith("You are a bounded role coordinated by backend Java code.")) {
             return new Response("mock-v1","mock-role", """
                 {"summary":"MOCK — role plumbing only; no real diagnosis, generated artifact or verified fix.",
