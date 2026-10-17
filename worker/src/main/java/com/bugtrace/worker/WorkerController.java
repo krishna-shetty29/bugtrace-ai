@@ -20,10 +20,14 @@ public class WorkerController {
         @NotNull Operation operation,
         @Size(max = 200) String testSelector,
         @Min(1) @Max(600) int timeoutSeconds,
-        GeneratedTestOverlay.Payload generatedTest
+        GeneratedTestOverlay.Payload generatedTest,
+        java.time.Instant notAfter
     ) {
+        public JobRequest(UUID executionId,UUID snapshotId,Operation operation,String testSelector,int timeoutSeconds,GeneratedTestOverlay.Payload generatedTest) {
+            this(executionId,snapshotId,operation,testSelector,timeoutSeconds,generatedTest,null);
+        }
         public JobRequest(UUID executionId,UUID snapshotId,Operation operation,String testSelector,int timeoutSeconds) {
-            this(executionId,snapshotId,operation,testSelector,timeoutSeconds,null);
+            this(executionId,snapshotId,operation,testSelector,timeoutSeconds,null,null);
         }
     }
 

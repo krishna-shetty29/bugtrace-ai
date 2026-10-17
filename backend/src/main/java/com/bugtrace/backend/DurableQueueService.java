@@ -53,6 +53,7 @@ public class DurableQueueService {
         if (!Boolean.TRUE.equals(locked)) return null;
         Integer active = jdbc.queryForObject("SELECT count(*) FROM execution_jobs WHERE worker_id=? AND queue_state='RUNNING' AND lease_until>clock_timestamp()", Integer.class, request.workerId());
         if (active != null && active > 0) return null;
+        expireQueuedDeadlines();
         UUID token = UUID.randomUUID();
         UUID attempt = UUID.randomUUID();
         var claimed = jdbc.queryForList("""
@@ -62,8 +63,9 @@ public class DurableQueueService {
                 progress='{"state":"CLAIMED"}'::jsonb,technical_error=NULL,updated_at=clock_timestamp()
             WHERE id=(SELECT id FROM execution_jobs
                 WHERE queue_state='QUEUED' AND snapshot_id=? AND attempts<max_attempts
+                    AND (not_after IS NULL OR not_after>clock_timestamp()+INTERVAL '1 second')
                 ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id,snapshot_id,operation,test_selector,timeout_seconds,attempts,generated_test
+            RETURNING id,snapshot_id,operation,test_selector,timeout_seconds,attempts,generated_test,not_after
             """, request.workerId(), token, attempt, request.snapshotId());
         if (claimed.isEmpty()) return null;
         var row = claimed.getFirst();
@@ -82,6 +84,7 @@ public class DurableQueueService {
         result.put("operation", row.get("operation")); result.put("testSelector", row.get("test_selector"));
         result.put("timeoutSeconds", row.get("timeout_seconds")); result.put("attempt", row.get("attempts"));
         result.put("leaseSeconds", 45);
+        result.put("notAfter",row.get("not_after")==null?null:InvestigationLoopPolicy.instant(row.get("not_after")).toString());
         result.put("generatedTest",row.get("generated_test")==null?null:mapper.readTree(row.get("generated_test").toString()));
         return result;
     }
@@ -136,6 +139,7 @@ public class DurableQueueService {
 
     @Transactional
     public void recoverExpired() {
+        expireQueuedDeadlines();
         var expired = jdbc.queryForList("""
             SELECT id,attempt_execution_id,attempts,max_attempts FROM execution_jobs
             WHERE queue_state='RUNNING' AND lease_until<=clock_timestamp()
@@ -161,6 +165,10 @@ public class DurableQueueService {
         }
     }
 
+    private void expireQueuedDeadlines() {
+        var expired=jdbc.queryForList("UPDATE execution_jobs SET queue_state='FAILED',technical_error='QUEUE_DEADLINE_EXPIRED',completed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE queue_state='QUEUED' AND not_after<=clock_timestamp()+INTERVAL '1 second' RETURNING id");
+        for(var row:expired)jdbc.update("UPDATE executions SET execution_state='ERROR',technical_error_code='QUEUE_DEADLINE_EXPIRED',technical_error_message='Loop deadline expired before worker claim',finished_at=clock_timestamp() WHERE id=?",row.get("id"));
+    }
     public Map<String,Object> view(UUID id) {
         var rows = jdbc.queryForList("""
             SELECT j.*,e.investigation_id FROM execution_jobs j JOIN executions e ON e.id=j.id WHERE j.id=?

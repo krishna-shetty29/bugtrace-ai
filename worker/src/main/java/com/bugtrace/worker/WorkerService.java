@@ -86,7 +86,7 @@ public class WorkerService {
     }
     private boolean cancelled(Execution e) { synchronized (e) { return e.state.equals("CANCEL_REQUESTED"); } }
     private void run(Execution e) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(e.job.timeoutSeconds());
+        long deadline = System.nanoTime() + ExecutionDeadline.remainingNanos(e.job.timeoutSeconds(),e.job.notAfter(),Instant.now());
         String terminal = "ERROR";
         try {
             synchronized (e) { if (!cancelled(e)) e.state = "PREPARING"; }
@@ -111,6 +111,7 @@ public class WorkerService {
             Files.createFile(artifact.resolve("control.stdout.log"));
             Files.createFile(artifact.resolve("control.stderr.log"));
             if (cancelled(e)) { terminal = "CANCELLED"; return; }
+            if(System.nanoTime()>=deadline)throw new TimeoutException("Absolute loop deadline expired before execution");
             if (!SnapshotFiles.hash(base).equals(hash)) throw new IllegalArgumentException("Base hash mismatch");
             SnapshotFiles.copy(base, e.experiment);
             if (!SnapshotFiles.hash(e.experiment).equals(hash)) throw new IllegalArgumentException("Experiment copy hash mismatch");
@@ -280,6 +281,7 @@ public class WorkerService {
         metadata.put("startedAt", e.started == null ? null : e.started.toString());
         metadata.put("finishedAt", e.finished.toString());
         metadata.put("timeoutSeconds", e.job.timeoutSeconds());
+        metadata.put("notAfter",e.job.notAfter()==null?null:e.job.notAfter().toString());
         metadata.put("exitCode", e.exitCode);
         metadata.put("state", terminal);
         metadata.put("classification", classification);

@@ -56,7 +56,8 @@ public class QueueClient {
                 try {
                     engine.submit(new JobRequest(execution,snapshot,Operation.valueOf(active.get("operation").toString()),
                         (String)active.get("testSelector"),((Number)active.get("timeoutSeconds")).intValue(),
-                        active.get("generatedTest")==null?null:mapper.convertValue(active.get("generatedTest"),GeneratedTestOverlay.Payload.class)));
+                        active.get("generatedTest")==null?null:mapper.convertValue(active.get("generatedTest"),GeneratedTestOverlay.Payload.class),
+                        active.get("notAfter")==null?null:java.time.Instant.parse(active.get("notAfter").toString())));
                     submitted=true;
                 } catch (Exception exception) {
                     // Report an explicit setup failure instead of silently dropping the claim.

@@ -3,6 +3,18 @@ package com.bugtrace.backend;
 /** Deterministic plumbing check; never contacts a model or pretends to diagnose the bug. */
 public final class MockAiProvider implements AiProvider {
     @Override public Response generate(Request request){
+        if(request.instructions().equals(InvestigationLoopPolicy.INSTRUCTIONS)) {
+            var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
+            var input=mapper.readTree(request.input());var fields=mapper.readTree(input.get("question").asString());
+            var ids=new java.util.ArrayList<String>();for(var item:input.path("evidence"))if(ids.size()<4)ids.add(item.get("id").asString());
+            boolean review="REVIEW".equals(fields.path("phase").asString());
+            String actual=fields.path("actualOutcome").asString("");
+            var decision=new InvestigationLoopPolicy.Decision(
+                review?"MOCK updated hypothesis after actual outcome: "+actual:"MOCK hypothesis: retry may record another charge after the first response is lost.",
+                ids,"RETRY_AFTER_RESPONSE_LOSS",review?"FINISH":"CONTINUE",
+                review?"MOCK summary; inspect the actual generated-test report. This establishes no verified diagnosis or fix.":"MOCK proposes the fixed trusted retry experiment; no test has run yet.",java.util.List.of());
+            return new Response("mock-v1","mock-bounded-loop",mapper.writeValueAsString(decision),new Usage(null,null,null,"MOCK_NOT_MEASURED"),false);
+        }
         if(request.instructions().equals(GeneratedReproduction.INSTRUCTIONS)) {
             var mapper=tools.jackson.databind.json.JsonMapper.builder().build();
             var ids=new java.util.ArrayList<String>();

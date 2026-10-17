@@ -47,6 +47,9 @@ public class AiCallService {
     Map<String,Object> submitGenerated(UUID investigation,Submission submission) {
         return submitVersioned(investigation,submission,GeneratedReproduction.VERSION,GeneratedReproduction.INSTRUCTIONS,10000);
     }
+    Map<String,Object> submitLoop(UUID investigation,Submission submission) {
+        return submitVersioned(investigation,submission,InvestigationLoopPolicy.VERSION,InvestigationLoopPolicy.INSTRUCTIONS,10000);
+    }
     private Map<String,Object> submitVersioned(UUID investigation,Submission submission,String promptVersion,String instructions,int questionLimit){
         if(submission==null||submission.clientRequestId()==null||submission.question()==null||submission.question().isBlank()||submission.question().length()>questionLimit)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Supply a request UUID, a nonempty report within the operation limit and selected evidence");
         var selected=evidence.resolve(investigation,submission.evidence());UUID id=submission.clientRequestId();

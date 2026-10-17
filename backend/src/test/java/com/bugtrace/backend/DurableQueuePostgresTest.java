@@ -32,6 +32,7 @@ class DurableQueuePostgresTest {
                     connection.setAutoCommit(false);
                     for (String name:List.of("V2__create_initial_tables.sql","V3__add_snapshot_import_metadata.sql","V4__add_durable_execution_queue.sql"))
                         statement.execute(Files.readString(Path.of("src/main/resources/db/migration",name)));
+                    statement.execute("ALTER TABLE execution_jobs ADD COLUMN generated_test jsonb, ADD COLUMN not_after timestamptz");
                     connection.commit();
                 }
                 var service=new DurableQueueService(jdbc);
