@@ -8,6 +8,17 @@ BugTrace AI helps developers investigate reported bugs using committed source sn
 
 Developers can submit reports through the browser or IntelliJ plugin, inspect saved evidence, and review proposed changes. AI-generated explanations and patches remain proposals until supported by execution and verification evidence.
 
+Public demonstration
+
+[Open the BugTrace AI demo](https://bugtrace-ai-demo.onrender.com)
+
+**Synthetic sample demonstration—no live AI investigations or experiments.**
+
+Explore three sample investigations with source references, reproduction
+snippets, illustrative logs, verification summaries and patch-review examples.
+
+No installation or sign-in is required. This demo does not accept real bug
+submissions, save shared investigations or record approvals.
 
 
 Project status
@@ -20,7 +31,7 @@ Project status
 
 \- Hosting providers: not selected.
 
-\- Deployment and remote HTTPS validation: pending.
+\- Deployment and remote HTTPS validation: completed.
 
 \- Controlled baseline-versus-full-workflow performance results: not reported.
 
