@@ -22,6 +22,7 @@ env:
 
 jobs:
   backend:
+    
     name: Backend build and tests
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -54,6 +55,18 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: backend/pom.xml
+	      - name: Initialize CI vector extension
+        env:
+          CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          docker exec "$CI_POSTGRES_CONTAINER" \
+            psql -U bugtrace_ci -d bugtrace_ci \
+            -v ON_ERROR_STOP=1 \
+            -c "CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;"
+          docker exec "$CI_POSTGRES_CONTAINER" \
+            psql -U bugtrace_ci -d bugtrace_ci \
+            -v ON_ERROR_STOP=1 \
+            -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';"
       - name: Build and test with mock provider
         working-directory: backend
         run: >-
