@@ -8,6 +8,7 @@ version = "0.2.0"
 repositories { mavenCentral(); intellijPlatform { defaultRepositories() } }
 dependencies {
 	testRuntimeOnly(kotlin("stdlib"))
+	testRuntimeOnly("com.google.code.gson:gson:2.13.2")
     intellijPlatform {
         val localIde = providers.gradleProperty("localIdePath")
         if (localIde.isPresent) local(localIde.get()) else intellijIdea("2026.2.3")
