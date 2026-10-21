@@ -1,4 +1,4 @@
-\# BugTrace AI
+BugTrace AI
 
 
 
@@ -10,7 +10,7 @@ Developers can submit reports through the browser or IntelliJ plugin, inspect sa
 
 
 
-\## Project status
+Project status
 
 
 
@@ -34,7 +34,7 @@ That run validates its specific commit. Check GitHub Actions for the status of l
 
 
 
-\## Problem and objectives
+Problem and objectives
 
 
 
@@ -62,7 +62,7 @@ The project aims to:
 
 
 
-\## Main features
+Main features
 
 
 
@@ -94,7 +94,7 @@ A queued job is not proof of execution. A proposed patch or approved review is n
 
 
 
-\## Architecture
+Architecture
 
 
 
@@ -132,7 +132,7 @@ The planned hosted backend must use persistent database and artifact storage. It
 
 
 
-\## Technology stack
+Technology stack
 
 
 
@@ -172,7 +172,7 @@ The installed embedding model supports evidence retrieval. It does not replace a
 
 
 
-\## Data structures and algorithms
+Data structures and algorithms
 
 
 
@@ -198,7 +198,7 @@ See the \[retrieval and DSA explanation](docs/final-documentation/final-document
 
 
 
-\## Repository layout
+Repository layout
 
 
 
@@ -226,7 +226,7 @@ docs/             Setup, CI and technical documentation
 
 
 
-\## Local setup
+Local setup
 
 
 
@@ -254,7 +254,7 @@ Run the following from the repository root in separate PowerShell windows.
 
 
 
-\### 1. Start infrastructure
+1. Start infrastructure
 
 
 
@@ -274,7 +274,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 
 
-\### 2. Start the backend
+2. Start the backend
 
 
 
@@ -298,7 +298,7 @@ Flyway applies pending database migrations during startup.
 
 
 
-\### 3. Start the frontend
+3. Start the frontend
 
 
 
@@ -350,7 +350,7 @@ Existing users sign in with their saved project access key. New databases requir
 
 
 
-\### 4. Start the worker when experiments are needed
+ 4. Start the worker when experiments are needed
 
 
 
@@ -376,7 +376,7 @@ Follow the \[worker setup instructions](docs/final-documentation/setup-guide.md)
 
 
 
-\## Permissions and execution policy
+Permissions and execution policy
 
 
 
@@ -406,7 +406,7 @@ Credentials belong in private storage and supported authorization headers. Do no
 
 
 
-\## Continuous integration
+Continuous integration
 
 
 
@@ -432,7 +432,7 @@ Paid AI calls remain outside ordinary CI. Live-model evaluations require explici
 
 
 
-\## Evaluation and results
+Evaluation and results
 
 
 
@@ -458,7 +458,7 @@ See:
 
 
 
-\## Known limitations
+Known limitations
 
 
 
