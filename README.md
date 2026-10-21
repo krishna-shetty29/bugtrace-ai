@@ -20,6 +20,27 @@ snippets, illustrative logs, verification summaries and patch-review examples.
 No installation or sign-in is required. This demo does not accept real bug
 submissions, save shared investigations or record approvals.
 
+## Screenshots
+
+These screenshots show the public synthetic sample demonstration.
+They do not represent live AI calls or actual experiment results.
+
+### Public sample explorer
+
+![BugTrace AI public sample explorer](docs/screenshots/01-demo-home.png)
+
+### Reproduction example
+
+![Synthetic reproduction test example](docs/screenshots/02-reproduction.png)
+
+### Verification and limitations
+
+![Sample verification summary and limitations](docs/screenshots/03-verification.png)
+
+### Patch review
+
+![Illustrative patch diff and review decision](docs/screenshots/04-patch-review.png)
+
 
 Project status
 
