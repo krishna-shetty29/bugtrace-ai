@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { accessApi, setTeamCsrf } from './teamClient'
-import { TeamRoleContext } from './teamRole'
+import { TeamRoleContext, TeamProjectContext } from './teamRole'
+import WorkerAvailabilityPanel from './WorkerAvailabilityPanel'
 
 type Actor = { id: string; projectId: string; name: string; kind: string; role: string }
 type Session = { actor: Actor; csrf: string }
@@ -83,7 +84,7 @@ export default function TeamAccessGate({ children }: { children: ReactNode }) {
   if (loading) return <p>Checking your session…</p>
   return <>
     {error && <p role="alert">{error}</p>}
-    {actor ? <><section aria-label="Signed-in project"><p>Signed in: {actor.name} · {actor.role}<br />Project: {actor.projectId}</p><button disabled={busy} onClick={() => void act(async () => { await accessApi('logout', {}); setTeamCsrf(''); setActor(null); setIssued([]) })}>Sign out</button>{actor.role === 'OWNER' && <Management />}</section><TeamRoleContext.Provider value={actor.role}>{children}</TeamRoleContext.Provider></> : <section>
+    {actor ? <><section aria-label="Signed-in project"><p>Signed in: {actor.name} · {actor.role}<br />Project: {actor.projectId}</p><button disabled={busy} onClick={() => void act(async () => { await accessApi('logout', {}); setTeamCsrf(''); setActor(null); setIssued([]) })}>Sign out</button>{actor.role === 'OWNER' && <Management />}</section><TeamRoleContext.Provider value={actor.role}><TeamProjectContext.Provider value={actor.projectId}><WorkerAvailabilityPanel key={actor.id} />{children}</TeamProjectContext.Provider></TeamRoleContext.Provider></> : <section>
       <h1>Sign in to BugTrace</h1>
       {!initialized && <><p>Initial setup requires the operator's bootstrap secret. It creates owner keys for existing projects once.</p><label>Bootstrap secret<input type="password" value={bootstrap} autoComplete="off" onChange={event => setBootstrap(event.target.value)} /></label><button disabled={busy || !bootstrap} onClick={() => void act(async () => { setIssued(await accessApi<Issued[]>('bootstrap', { secret: bootstrap })); setBootstrap(''); setInitialized(true) })}>Initialize project access</button></>}
       {issued.map(item => <Secret key={item.credentialId} item={item} />)}

@@ -103,5 +103,7 @@
   "TeamAccessController.logout": "READ",
   "TeamAccessController.revoke": "OWNER",
   "TeamAccessController.session": "READ",
-  "TeamAccessController.status": "READ"
+  "TeamAccessController.status": "READ",
+  "WorkerPresenceController.publish": "WORKER",
+  "WorkerPresenceController.list": "READ"
 }

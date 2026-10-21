@@ -129,7 +129,11 @@ public class DurableQueueService {
         var row = rows.getFirst();
         if (!Objects.equals(row.get("worker_id"), completion.workerId()) || !Objects.equals(row.get("lease_token"), completion.leaseToken()))
             throw reject("Stale lease token");
-        if (row.get("queue_state").equals("COMPLETED")) return view(id); // Idempotent retry of an accepted completion.
+        if (row.get("queue_state").equals("COMPLETED")) {
+            if(!mapper.readTree(row.get("result").toString()).equals(mapper.valueToTree(completion.metadata()))
+                ||!Objects.equals(row.get("stdout"),completion.stdout())||!Objects.equals(row.get("stderr"),completion.stderr()))throw reject("Accepted completion payload differs");
+            return view(id); // Exact replay may acknowledge a result even after its old lease time.
+        }
         if (!row.get("queue_state").equals("RUNNING") || !Boolean.TRUE.equals(row.get("live"))) throw reject("Lease is no longer live");
         String expectedHash = jdbc.queryForObject("SELECT content_hash FROM repository_snapshots WHERE id=?", String.class, row.get("snapshot_id"));
         try { QueueContracts.validateResult(completion.metadata(), (UUID)row.get("attempt_execution_id"),

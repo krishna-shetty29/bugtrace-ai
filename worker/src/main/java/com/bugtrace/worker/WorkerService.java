@@ -64,6 +64,10 @@ public class WorkerService {
             throw new IllegalArgumentException("Benchmark snapshots require explicit startup registration");
         }
     }
+    Path queueStateRoot(){return root.resolve(".worker-outbox");}
+    void verifyRegisteredBaseBeforeClaim() throws Exception {
+        if(!SnapshotFiles.hash(base).equals(hash))throw new IllegalArgumentException("Local immutable base changed; refusing queue claim");
+    }
     void validateQueueClaim(Map<String,Object> claim) {
         if(!snapshotId.equals(String.valueOf(claim.get("snapshotId"))))throw new IllegalArgumentException("Queue snapshot differs from worker registration");
         if(benchmark!=null)benchmark.validateClaim(claim);
@@ -230,7 +234,7 @@ public class WorkerService {
             synchronized (e) { if (!cancelled(e)) { e.state = "RUNNING"; if (e.started == null) e.started = Instant.now(); } }
             int attached = command(e, List.of("docker", "start", "--attach", name), deadline);
             if (attached == -1 || cancelled(e)) return attached;
-            Process inspect = new ProcessBuilder("docker", "inspect", "--format",
+            Process inspect = LocalDocker.process("docker", "inspect", "--format",
                 "{{.State.Running}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.Image}}", name)
                 .redirectErrorStream(true).start();
             if (!inspect.waitFor(5, TimeUnit.SECONDS)) { inspect.destroyForcibly(); throw new IOException("Container state inspection timed out"); }
@@ -253,7 +257,7 @@ public class WorkerService {
         Process process=null;
         try {
             if(System.nanoTime()>=deadline)throw new TimeoutException("Execution deadline expired before environment validation");
-            process=new ProcessBuilder("docker","inspect",name).redirectOutput(file.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            process=LocalDocker.process("docker","inspect",name).redirectOutput(file.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).start();
             long remaining=Math.min(TimeUnit.SECONDS.toNanos(5),Math.max(1,deadline-System.nanoTime()));
             if(!process.waitFor(remaining,TimeUnit.NANOSECONDS))throw new TimeoutException("Container environment inspection timed out");
             if(process.exitValue()!=0||Files.size(file)>262144)throw new IOException("Container environment inspection failed");
@@ -270,7 +274,7 @@ public class WorkerService {
     }
     private int command(Execution e, List<String> args, long deadline) throws Exception {
         if (System.nanoTime() >= deadline) return -1;
-        Process p = new ProcessBuilder(args).start();
+        Process p = LocalDocker.process(args).start();
         synchronized (e) { e.process = p; }
         boolean repositoryOutput = args.size() > 1 && args.get(1).equals("start");
         Path stdout = repositoryOutput ? e.stdout : e.evidence.resolve("control.stdout.log");
@@ -387,15 +391,15 @@ public class WorkerService {
         }
     }
     private static void cleanup(String name) throws Exception {
-        Process p = new ProcessBuilder("docker", "rm", "--force", name).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+        Process p = LocalDocker.process("docker", "rm", "--force", name).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
         if (!p.waitFor(10, TimeUnit.SECONDS)) { p.destroyForcibly(); throw new IOException("Docker cleanup timed out"); }
         if (p.exitValue() != 0) {
             // A cancelled create may never have registered a container. Require a responsive daemon.
-            Process check = new ProcessBuilder("docker", "info", "--format", "{{.ID}}")
+            Process check = LocalDocker.process("docker", "info", "--format", "{{.ID}}")
                 .redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
             if (!check.waitFor(10, TimeUnit.SECONDS)) { check.destroyForcibly(); throw new IOException("Docker daemon unavailable for cleanup"); }
             if (check.exitValue() != 0) throw new IOException("Docker daemon unavailable for cleanup");
-            Process exists = new ProcessBuilder("docker", "inspect", name).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            Process exists = LocalDocker.process("docker", "inspect", name).redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD).start();
             if (!exists.waitFor(10, TimeUnit.SECONDS)) { exists.destroyForcibly(); throw new IOException("Cleanup verification timed out"); }
             if (exists.exitValue() == 0) throw new IOException("Container still exists after cleanup");
         }

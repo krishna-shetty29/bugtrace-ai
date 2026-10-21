@@ -75,6 +75,14 @@ class DurableQueuePostgresTest {
                 assertEquals("stderr evidence",service.logs(id).get("stderr"));
                 assertEquals("COMPLETED",tx.execute(s->service.complete(id,completion(second,owner,snapshot))).get("queueState"));
                 assertEquals("COMPLETED",new DurableQueueService(new JdbcTemplate(source)).view(id).get("queueState"));
+                var accepted=completion(second,owner,snapshot);
+                var changed=new LinkedHashMap<String,Object>(accepted.metadata());changed.put("classification","PASSED");
+                assertThrows(ResponseStatusException.class,()->tx.execute(s2->service.complete(id,new Complete(accepted.leaseToken(),owner,changed,accepted.stdout(),accepted.stderr()))));
+                assertThrows(ResponseStatusException.class,()->tx.execute(s2->service.complete(id,new Complete(accepted.leaseToken(),owner,accepted.metadata(),"changed logs",accepted.stderr()))));
+                jdbc.update("UPDATE execution_jobs SET lease_until=clock_timestamp()-INTERVAL '1 second' WHERE id=?",id);
+                assertEquals("COMPLETED",tx.execute(s2->service.complete(id,accepted)).get("queueState"));
+                assertEquals("expected: <1> but was: <2>",service.logs(id).get("stdout"));
+
 
                 var retryJob=tx.execute(s->service.enqueue(investigation,new CreateJob(Operation.COMPILE,null,120)));
                 UUID retryId=(UUID)retryJob.get("executionId");

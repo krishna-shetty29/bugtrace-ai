@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import WorkerAvailabilityPanel from './WorkerAvailabilityPanel'
+import { queueExplanation } from './workerPresence'
 import { request, runPath, checkRun, checkRecord, pendingId, download } from './benchmarkClient'
 import type { Case, Detail, Evidence, Run, SavedRecord, Settings, Experiment } from './benchmarkClient'
 
@@ -148,7 +150,7 @@ export default function BenchmarkPage({ investigationId, runId }: { investigatio
       <p><a href="#/benchmarks">All benchmark cases</a></p>
       <button disabled={disabled} onClick={() => void act('Loading saved state', refresh)}>Reload saved investigation</button>
       {detail && <>
-        <h2>{detail.caseId} · Collection {detail.collectionVersion}</h2><p>{detail.bugReport}</p><p><strong>Expected:</strong> {detail.expectedBehavior}</p>
+        <WorkerAvailabilityPanel key={detail.snapshotId} snapshotId={detail.snapshotId} expectedHash={detail.verification?.contentHash} /><h2>{detail.caseId} · Collection {detail.collectionVersion}</h2><p>{detail.bugReport}</p><p><strong>Expected:</strong> {detail.expectedBehavior}</p>
         <details><summary>Case identity</summary><p>Investigation: {detail.investigationId}<br />Snapshot: {detail.snapshotId}<br />Release: {detail.releaseCommit}<br />Content hash: {detail.verification?.contentHash || 'Not imported'}</p></details>
         <button disabled={disabled} onClick={() => void act('Importing and verifying public case', async () => { setDetail(await request<Detail>(`/benchmark-browser/investigations/${investigationId}/import`, {})); await refresh() })}>{detail.imported ? 'Verify imported case' : 'Import and verify case'}</button>
         <p>Snapshot verification: {verified ? 'Verified' : 'Not verified'}</p>
@@ -186,8 +188,8 @@ export default function BenchmarkPage({ investigationId, runId }: { investigatio
           <label><input type="checkbox" style={{ width: 'auto', display: 'inline' }} checked={trusted} onChange={event => setTrusted(event.target.checked)} /> Enable execution for this trusted benchmark fixture run</label>
           <button disabled={disabled || !trusted || run.state !== 'TEST_READY' || (run.experiment_jobs ?? 0) >= 3} onClick={() => void act('Queuing registered benchmark experiment', execute)}>Compile and run generated test</button>
           <button disabled={disabled} onClick={() => void act('Loading bound experiments', loadExperiments)}>Load saved experiments</button>
-          <ul>{experiments.map(item => <li key={item.executionId}><button disabled={disabled} onClick={() => void act('Loading experiment evidence', async () => setExperiment(await request<Experiment>(`${runPath(investigationId, runId)}/experiments/${item.executionId}`)))}>{item.executionId} · v{item.sourceVersion} · {item.queueState} · {item.result?.classification || item.technicalError || 'Pending'} · {item.observation}</button></li>)}</ul>
-          {experiment && <><p>Source version: {experiment.sourceVersion}<br />Source SHA256: {experiment.sourceSha256}<br />Observation: {experiment.observation}</p><pre>{json(experiment)}</pre><button onClick={() => download(`${experiment.executionId}-benchmark.json`, json(experiment), 'application/json')}>Download execution evidence</button>
+          <ul>{experiments.map(item => <li key={item.executionId}><button disabled={disabled} onClick={() => void act('Loading experiment evidence', async () => setExperiment(await request<Experiment>(`${runPath(investigationId, runId)}/experiments/${item.executionId}`)))}>{item.executionId} · v{item.sourceVersion} · {item.queueState} · {item.queueState === 'QUEUED' ? 'Waiting for worker — not executed' : item.result?.classification || item.technicalError || 'Pending'} · {item.observation}</button></li>)}</ul>
+          {experiment && <><p>{queueExplanation(experiment.queueState)}</p><p>Source version: {experiment.sourceVersion}<br />Source SHA256: {experiment.sourceSha256}<br />Observation: {experiment.observation}</p><pre>{json(experiment)}</pre><button onClick={() => download(`${experiment.executionId}-benchmark.json`, json(experiment), 'application/json')}>Download execution evidence</button>
           {experiment.result?.classification === 'COMPILATION_FAILED' && experiment.sourceVersion === Math.max(0, ...experiments.map(item => item.sourceVersion)) && <><p>Only compiler diagnostics naming the generated Java file qualify. Review logs before requesting a repair.</p>{((run.compiler_repairs ?? 0) >= 2 || (run.experiment_jobs ?? 0) >= 3) ? <p>REPAIR_EXHAUSTED — generated test remains invalid.</p> : <button disabled={disabled || (run.provider !== 'mock' && !liveApproved)} onClick={() => void act('Requesting bounded compiler repair', repair)}>Repair generated-file compilation error</button>}</>}
           </>}
           <h3>Save and reload conclusion</h3><button disabled={disabled || run.state === 'BUSY'} onClick={() => void act('Saving case record', exportRecord)}>Save conclusion record</button>

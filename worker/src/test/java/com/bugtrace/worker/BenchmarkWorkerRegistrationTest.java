@@ -41,7 +41,8 @@ class BenchmarkWorkerRegistrationTest {
         return new JobRequest(UUID.randomUUID(),snapshot,Operation.RUN_SELECTED_TEST,BenchmarkWorkerRegistration.TEST_CLASS,timeout,payload);
     }
     @Test void acceptsOnlyBoundSnapshotAndApprovedContract(){var c=validate(document(),captured());assertDoesNotThrow(()->c.validateJob(job(snapshot,120,payload())));}
-    @Test void rejectsChangedBindingFields(){for(String key:List.of("registrationId","investigationId","snapshotId","contentHash","basePath","caseId","modulePath","releaseCommit","benchmarkContentHash")){var m=captured();m.put(key,"different");assertThrows(Exception.class,()->validate(document(),m),key);}}
+    @Test void rejectsChangedBindingFields(){for(String key:List.of("registrationId","investigationId","snapshotId","contentHash","caseId","modulePath","releaseCommit","benchmarkContentHash")){var m=captured();m.put(key,"different");assertThrows(Exception.class,()->validate(document(),m),key);}}
+    @Test void backendFilesystemPathIsNotAWorkerBinding(){var m=captured();m.put("basePath","/server/only/base");assertNotNull(validate(document(),m));}
     @Test void rejectsUnverifiedSnapshot(){var m=captured();m.put("verified",false);assertThrows(Exception.class,()->validate(document(),m));}
     @Test void rejectsChangedClassPathAndRelease(){for(String key:List.of("generatedTestClass","generatedTestPath","generatedTestPackage","caseId","modulePath","releaseCommit")){var m=document();m.put(key,"arbitrary");assertThrows(Exception.class,()->validate(m,captured()),key);}}
     @Test void rejectsEveryChangedEnvironmentField(){for(String key:env().keySet()){var e=env();e.put(key,"changed");var m=document();m.put("environment",e);assertThrows(Exception.class,()->validate(m,captured()),key);}}

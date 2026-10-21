@@ -61,6 +61,9 @@ public class TeamPermissionInterceptor implements HandlerInterceptor {
     }
     private void worker(HttpServletRequest request,TeamAccessContext.Actor actor,String key) {
         var b=body(request);String path=request.getRequestURI();
+        if(key.equals("WorkerPresenceController.publish")) {
+            if(!actor.snapshotId().equals(id(b.path("snapshotId").asText()))||!actor.workerId().equals(b.path("workerId").asText()))throw TeamAccessService.denied("Presence is outside worker registration");return;
+        }
         if(key.equals("DurableQueueController.claim")) {
             if(!actor.snapshotId().equals(id(b.path("snapshotId").asText()))||!actor.workerId().equals(b.path("workerId").asText()))throw TeamAccessService.denied("Worker claim is outside its registration");return;
         }

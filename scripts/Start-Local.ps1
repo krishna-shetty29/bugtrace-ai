@@ -1,9 +1,11 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)][ValidateSet('Infrastructure','Backend','Frontend','Worker')][string]$Component,
     [string]$ProjectRoot,
     [ValidateSet('Benchmark','Manual')][string]$WorkerMode='Benchmark',
     [string]$ImportRecord,
     [string]$WorkerId='laptop-worker-01',
+    [string]$BackendUrl='http://127.0.0.1:8080',
+    [string]$LocalBase,
     [string]$CacheSeed=(Join-Path $env:USERPROFILE 'benchmark-cache\artifacts'),
     [switch]$WithOllama,
     [switch]$CheckOnly
@@ -13,6 +15,10 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 . (Join-Path $PSScriptRoot 'LocalStartup.Common.ps1')
 $root=Resolve-LocalProject $ProjectRoot
+. (Join-Path $PSScriptRoot 'WorkerBackend.Common.ps1')
+$workerBackend=Resolve-WorkerBackendOrigin $BackendUrl
+if($Component -ne 'Worker' -and $PSBoundParameters.ContainsKey('BackendUrl')){throw 'BackendUrl applies only to Worker.'}
+if($Component -eq 'Worker' -and $WorkerMode -eq 'Manual' -and $workerBackend -ne 'http://127.0.0.1:8080'){throw 'Remote backend configuration currently supports Benchmark workers only.'}
 if($WithOllama -and $Component -ne 'Infrastructure'){throw 'WithOllama applies only to Infrastructure.'}
 switch($Component) {
     'Infrastructure' {
@@ -55,7 +61,7 @@ switch($Component) {
             if(-not(Test-Path -LiteralPath $CacheSeed -PathType Container)){throw 'Artifact-only benchmark cache is missing. Follow Prepare-BenchmarkCache.ps1 instructions in the guide.'}
         }
         if($CheckOnly){Write-Host 'Worker local prerequisites passed. Worker credential, registration, image and runtime validation still occur at startup. No worker started.';return}
-        Assert-BackendReady
+        if($workerBackend -eq 'http://127.0.0.1:8080'){Assert-BackendReady}
         # Do not let a human key override the worker key in the existing API helper.
         $previousHuman=$env:BUGTRACE_ACCESS_KEY
         $previousWorker=$env:WORKER_ACCESS_TOKEN
@@ -63,7 +69,7 @@ switch($Component) {
             Remove-Item Env:\BUGTRACE_ACCESS_KEY -ErrorAction SilentlyContinue
             & (Join-Path $root 'scripts\Set-BugTraceAccess.ps1') -Kind Worker
             if($WorkerMode -eq 'Benchmark') {
-                & (Join-Path $root 'scripts\Start-BenchmarkWorker.ps1') -ImportRecord $ImportRecord -WorkerId $WorkerId -CacheSeed $CacheSeed
+                & (Join-Path $root 'scripts\Start-BenchmarkWorker.ps1') -ImportRecord $ImportRecord -WorkerId $WorkerId -CacheSeed $CacheSeed -BackendUrl $workerBackend -LocalBase $LocalBase
             } else {
                 & (Join-Path $root 'scripts\Start-ManualWorker.ps1') -WorkerId $WorkerId
             }

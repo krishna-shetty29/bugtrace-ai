@@ -17,21 +17,19 @@ public record BenchmarkWorkerRegistration(UUID registrationId, UUID investigatio
 
     public static BenchmarkWorkerRegistration fetch(String backend,String registration,String investigation,
         String snapshot,String hash,Path base,String image) throws Exception {
-        URI uri=URI.create(backend);
-        if(!"http".equals(uri.getScheme())||!Set.of("localhost","127.0.0.1").contains(uri.getHost())
-            ||uri.getRawUserInfo()!=null||uri.getRawQuery()!=null||uri.getRawFragment()!=null
-            ||!(uri.getPath().isEmpty()||uri.getPath().equals("/")))throw new IllegalArgumentException("Use a localhost backend origin");
+        String origin=BackendOrigin.normalize(backend);
         UUID r=UUID.fromString(registration),i=UUID.fromString(investigation);
-        var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
-        String origin=backend.replaceAll("/$","");
+        var client=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).followRedirects(HttpClient.Redirect.NEVER).build();
         var registered=post(client,origin+"/api/benchmark-registrations/"+r+"/verify");
         var captured=post(client,origin+"/api/benchmark-registrations/"+r+"/snapshots/"+i+"/verify");
-        return validate(registered,captured,r,i,UUID.fromString(snapshot),hash,base,image);
+        var result=validate(registered,captured,r,i,UUID.fromString(snapshot),hash,base,image);
+        if(!SnapshotFiles.hash(base).equals(hash))throw new IllegalArgumentException("Local snapshot differs from authenticated backend content hash");
+        return result;
     }
     private static Map<String,Object> post(HttpClient client,String url) throws Exception {
         String token=System.getenv("WORKER_ACCESS_TOKEN");if(token==null||!token.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException("Snapshot-bound worker access token required");
         var request=HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(30))
-            .header("Authorization","Bearer "+token).POST(HttpRequest.BodyPublishers.noBody()).build();
+            .header("Authorization","Bearer "+token).header("Content-Type","application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build();
         var response=client.send(request,HttpResponse.BodyHandlers.ofInputStream());
         try(var stream=response.body()) {
             byte[] bytes=stream.readNBytes(262145);
@@ -47,7 +45,7 @@ public record BenchmarkWorkerRegistration(UUID registrationId, UUID investigatio
             ||!investigation.toString().equals(String.valueOf(captured.get("investigationId")))
             ||!snapshot.toString().equals(String.valueOf(captured.get("snapshotId")))
             ||hash==null||!hash.matches("[0-9a-f]{64}")||!hash.equals(captured.get("contentHash"))
-            ||!base.toAbsolutePath().normalize().equals(Path.of(String.valueOf(captured.get("basePath"))).toAbsolutePath().normalize()))
+            ||base==null)
             throw new IllegalArgumentException("Benchmark snapshot registration mismatch");
         if(!(registered.get("registration") instanceof Map<?,?> c))throw new IllegalArgumentException("Missing trusted registration");
         String caseId=String.valueOf(c.get("caseId"));
