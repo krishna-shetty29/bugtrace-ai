@@ -80,6 +80,7 @@ public class InvestigationService {
     }
 
     public List<Project> listProjects() {
+        if(TeamAccessContext.project()!=null)return jdbc.query("SELECT * FROM projects WHERE id=? ORDER BY created_at DESC,id",PROJECT_MAPPER,TeamAccessContext.project());
         return jdbc.query("""
             SELECT *
             FROM projects
@@ -97,6 +98,7 @@ public class InvestigationService {
         String expectedBehavior,
         String observedBehavior
     ) {
+        TeamAccessContext.requireProject(projectId);
         List<UUID> projects = jdbc.query(
             "SELECT id FROM projects WHERE id = ?",
             (rs, rowNum) -> rs.getObject("id", UUID.class),
@@ -124,7 +126,7 @@ public class InvestigationService {
 
         UUID investigationId = UUID.randomUUID();
 
-        return jdbc.queryForObject("""
+        var created=jdbc.queryForObject("""
             INSERT INTO investigations (
                 id,
                 project_id,
@@ -147,9 +149,11 @@ public class InvestigationService {
             expectedBehavior.strip(),
             observedBehavior.strip()
         );
+        TeamAccessContext.record(jdbc,"INVESTIGATION_SUBMITTED",investigationId);return created;
     }
 
     public List<Investigation> listInvestigations() {
+        if(TeamAccessContext.project()!=null)return jdbc.query("SELECT * FROM investigations WHERE project_id=? ORDER BY created_at DESC,id",INVESTIGATION_MAPPER,TeamAccessContext.project());
         return jdbc.query("""
             SELECT *
             FROM investigations
@@ -170,6 +174,6 @@ public class InvestigationService {
             );
         }
 
-        return results.getFirst();
+        TeamAccessContext.requireProject(results.getFirst().projectId());return results.getFirst();
     }
 }

@@ -36,6 +36,7 @@ public class ManualWorkflowService {
         var rows=jdbc.queryForList("SELECT * FROM repository_snapshots WHERE id=?",id);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.CONFLICT,"Configured fixture snapshot does not exist");
         var row=rows.getFirst();
+        if(TeamAccessContext.project()!=null&&!TeamAccessContext.project().equals(row.get("project_id")))return List.of();
         checkFixture(row);
         return List.of(new Fixture(id,(UUID)row.get("project_id"),owner(row),row.get("commit_sha").toString(),
             row.get("module_path").toString(),row.get("content_hash").toString()));
@@ -46,7 +47,7 @@ public class ManualWorkflowService {
         if (!configuredSnapshot().equals(id)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Select the configured fixture snapshot");
         var rows=jdbc.queryForList("SELECT * FROM repository_snapshots WHERE id=? FOR SHARE",id);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Snapshot not found");
-        var row=rows.getFirst(); checkFixture(row);
+        var row=rows.getFirst(); TeamAccessContext.requireProject((UUID)row.get("project_id"));checkFixture(row);
         UUID owner=owner(row);
         Integer matches=jdbc.queryForObject("SELECT COUNT(*) FROM investigations WHERE id=? AND snapshot_id=?",Integer.class,owner,id);
         if (matches==null || matches!=1) throw new ResponseStatusException(HttpStatus.CONFLICT,"Snapshot owner does not match");
@@ -56,7 +57,12 @@ public class ManualWorkflowService {
             INSERT INTO investigations(id,project_id,snapshot_id,title,bug_description,expected_behavior,observed_behavior,workflow_state)
             VALUES (?,?,?,?,?,?,?,'CREATED')
             """,report,row.get("project_id"),id,title.strip(),bug.strip(),expected.strip(),observed.strip());
-        return investigations.getInvestigation(report);
+        TeamAccessContext.record(jdbc,"INVESTIGATION_SUBMITTED",report);return investigations.getInvestigation(report);
+    }
+
+    /** Separate registered imports, never substituted for the checkout fixture. */
+    public List<Map<String,Object>> benchmarkCases() {
+        return jdbc.queryForList("SELECT b.investigation_id,b.registration_id,b.case_id,b.snapshot_id,b.release_commit,b.benchmark_content_hash,b.platform_content_hash FROM benchmark_snapshot_imports b ORDER BY b.created_at DESC");
     }
 
     private UUID configuredSnapshot() {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import './App.css'
+import BenchmarkPage from './BenchmarkPage'
 import SemanticRetrievalPanel from './SemanticRetrievalPanel'
 import DocumentContextPanel from './DocumentContextPanel'
 import AiModelPanel from './AiModelPanel'
@@ -66,12 +67,6 @@ function Investigations() {
 function NewInvestigation() {
   const projects = usePoll<Project[]>('/projects', 10000)
   const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  const [projectName, setProjectName] = useState('')
-  async function createProject(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy(true); setError('')
-    try { await api('/projects', { name: projectName, description: '' }); setProjectName('') }
-    catch (cause) { setError(message(cause)) } finally { setBusy(false) }
-  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const fields = new FormData(event.currentTarget)
     const body = Object.fromEntries(fields.entries()); setBusy(true); setError('')
@@ -79,7 +74,7 @@ function NewInvestigation() {
     catch (cause) { setError(message(cause)); setBusy(false) }
   }
   return <><h1>New investigation</h1><ErrorBox>{error || projects.error}</ErrorBox>
-    <details><summary>Create a project first if needed</summary><form onSubmit={createProject}><label>Project name<input required maxLength={200} value={projectName} onChange={event => setProjectName(event.target.value)} /></label><button disabled={busy}>Create project</button><p>New projects appear in the selector within ten seconds.</p></form></details>
+    <p>Project owners can create another project in Project access management above. Sign in with that project’s key to use it.</p>
     <form onSubmit={submit}>
       <label>Project<select name="projectId" required defaultValue=""><option value="" disabled>Select a project</option>{projects.data?.map(project => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
       <label>Title<input name="title" required maxLength={300} /></label>
@@ -128,6 +123,25 @@ function InvestigationDetail({ id }: { id: string }) {
     <h2>Run an execution</h2><p>The worker must be running and registered for this snapshot. Use your trusted checkout fixture.</p>
     <form onSubmit={queue}><label>Operation<select name="operation"><option>RUN_SELECTED_TEST</option><option>RUN_TEST_SUITE</option><option>COMPILE</option></select></label><label>Test class (selected-test operation only)<input name="testSelector" defaultValue="CheckoutIdempotencyTest" /></label><label>Deadline in seconds<input name="timeoutSeconds" type="number" min={1} max={600} required defaultValue={300} /></label><button disabled={busy}>Queue execution</button></form>
     <h2>Open an existing execution</h2><OpenExecution /></> }</>
+}
+function InvestigationPage({ id }: { id: string }) {
+  const [mode, setMode] = useState<'loading' | 'benchmark' | 'checkout' | 'error'>('loading')
+  const [error, setError] = useState('')
+  useEffect(() => {
+    const controller = new AbortController()
+    api(`/benchmark-browser/investigations/${id}`, undefined, controller.signal)
+      .then(() => { if (!controller.signal.aborted) setMode('benchmark') })
+      .catch(cause => {
+        if (controller.signal.aborted) return
+        const text = message(cause)
+        if (text.startsWith('HTTP 404:') && text.includes('No benchmark investigation binding')) setMode('checkout')
+        else { setError(text); setMode('error') }
+      })
+    return () => controller.abort()
+  }, [id])
+  if (mode === 'loading') return <p>Loading investigation type…</p>
+  if (mode === 'error') return <ErrorBox>{error}</ErrorBox>
+  return mode === 'benchmark' ? <BenchmarkPage investigationId={id} /> : <InvestigationDetail id={id} />
 }
 function OpenExecution({ artifacts = false }: { artifacts?: boolean }) {
   function open(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const id = String(new FormData(event.currentTarget).get('id')).trim(); window.location.hash = `/${artifacts ? 'artifacts' : 'executions'}/${id}` }
@@ -356,9 +370,11 @@ export default function App() {
   if (route === '/' || route === '/investigations') page = <Investigations />
   else if (route === '/new') page = <NewInvestigation />
   else if (route === '/workflow') page = <ManualWorkflow />
+  else if (route === '/benchmarks') page = <BenchmarkPage />
+  else if (parts[0] === 'benchmarks' && (parts.length === 2 || parts.length === 3) && uuid.test(parts[1]) && (parts.length === 2 || uuid.test(parts[2]))) page = <BenchmarkPage investigationId={parts[1]} runId={parts[2]} />
   else if (route === '/executions' || route === '/artifacts') page = <><h1>{parts[0] === 'artifacts' ? 'Artifacts' : 'Open execution'}</h1><p>Enter a backend job ID. The current API does not list execution history.</p><OpenExecution artifacts={parts[0] === 'artifacts'} /></>
-  else if (parts.length === 2 && uuid.test(parts[1]) && parts[0] === 'investigations') page = <InvestigationDetail id={parts[1]} />
+  else if (parts.length === 2 && uuid.test(parts[1]) && parts[0] === 'investigations') page = <InvestigationPage id={parts[1]} />
   else if (parts.length === 2 && uuid.test(parts[1]) && ['executions', 'artifacts'].includes(parts[0])) page = <Execution id={parts[1]} artifacts={parts[0] === 'artifacts'} />
   else page = <h1>Page not found</h1>
-  return <><header><a className="brand" href="#/">BugTrace AI</a><nav aria-label="Main navigation"><a href="#/workflow">Manual workflow</a><a href="#/">Investigations</a><a href="#/new">New investigation</a><a href="#/executions">Execution detail</a><a href="#/artifacts">Artifacts</a></nav></header><main key={route}>{page}</main></>
+  return <><header><a className="brand" href="#/">BugTrace AI</a><nav aria-label="Main navigation"><a href="#/benchmarks">Benchmarks</a><a href="#/workflow">Manual workflow</a><a href="#/">Investigations</a><a href="#/new">New investigation</a><a href="#/executions">Execution detail</a><a href="#/artifacts">Artifacts</a></nav></header><main key={route}>{page}</main></>
 }

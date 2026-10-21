@@ -1,7 +1,13 @@
+param([string]$WorkerId = "laptop-worker-01")
+
+. (Join-Path $PSScriptRoot 'Use-BugTraceAccess.ps1')
 $ErrorActionPreference = 'Stop'
+if($WorkerId -notmatch '^[A-Za-z0-9_-]{1,64}$'){throw 'Invalid worker ID.'}
+$env:WORKER_ID=$WorkerId
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $backend = 'http://127.0.0.1:8080'
-$fixtures = @(Invoke-RestMethod -Uri "$backend/api/manual-workflow/fixtures" -ErrorAction Stop)
+$fixtures = Invoke-RestMethod -Uri "$backend/api/manual-workflow/fixtures" -ErrorAction Stop
+$fixtures = @($fixtures)
 if ($fixtures.Count -ne 1) { throw 'Configure exactly one demo fixture in the backend first.' }
 $fixture = $fixtures[0]
 $owner = [guid]::Parse($fixture.importingInvestigationId).ToString()

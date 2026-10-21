@@ -13,7 +13,10 @@ public class SnapshotSearchService {
     private final JdbcTemplate jdbc;
     private final SnapshotImportService snapshots;
     private final JsonMapper mapper=JsonMapper.builder().build();
-    public SnapshotSearchService(JdbcTemplate jdbc,SnapshotImportService snapshots) { this.jdbc=jdbc;this.snapshots=snapshots; }
+    private final BenchmarkRecordScope benchmarkScope;
+    public SnapshotSearchService(JdbcTemplate jdbc,SnapshotImportService snapshots) {this(jdbc,snapshots,null);}
+    @org.springframework.beans.factory.annotation.Autowired
+    public SnapshotSearchService(JdbcTemplate jdbc,SnapshotImportService snapshots,BenchmarkRecordScope scope) {this.jdbc=jdbc;this.snapshots=snapshots;this.benchmarkScope=scope;}
     public record Results(UUID investigationId,UUID snapshotId,String contentHash,String query,String kind,
         int limit,long totalMatches,boolean truncated,boolean symbolsAvailable,int failedJavaFiles,
         int sourceFiles,int textFiles,int executionsSearched,int executionWindow,List<SnapshotSearchEngine.Notice> notices,
@@ -22,20 +25,22 @@ public class SnapshotSearchService {
         SnapshotSearchEngine.Query query;
         try { query=SnapshotSearchEngine.Query.create(text,kind,limit); }
         catch(IllegalArgumentException exception){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,exception.getMessage());}
+        var benchmark=benchmarkScope==null?null:benchmarkScope.optional(investigation);
         var verified=snapshots.verifySnapshot(investigation);
         var rows=jdbc.queryForList("SELECT s.id,s.source_location FROM investigations i JOIN repository_snapshots s ON s.id=i.snapshot_id WHERE i.id=?",investigation);
         if(rows.isEmpty())throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Investigation not found");
         UUID snapshot=(UUID)rows.getFirst().get("id");String hash=verified.get("contentHash").toString();
         try {
-            var saved=jdbc.queryForList("SELECT document::text AS document FROM java_symbol_indexes WHERE snapshot_id=? AND content_hash=?",snapshot,hash);
+            var saved=benchmark==null?jdbc.queryForList("SELECT document::text AS document FROM java_symbol_indexes WHERE snapshot_id=? AND content_hash=?",snapshot,hash):List.<Map<String,Object>>of();
             JavaSymbolIndexer.Index index=saved.isEmpty()?null:mapper.readValue(saved.getFirst().get("document").toString(),JavaSymbolIndexer.Index.class);
+            if(benchmark!=null)index=new JavaSymbolIndexer().index(benchmark.base());
             if(index==null&&(kind==SnapshotSearchEngine.Kind.CLASS||kind==SnapshotSearchEngine.Kind.METHOD))
                 throw new ResponseStatusException(HttpStatus.CONFLICT,"Build the Java symbol index before searching classes or methods");
             var engine=new SnapshotSearchEngine();var matches=new SnapshotSearchEngine.Matches(limit);
             engine.symbols(index,query,matches);
             var scan=engine.source(Path.of(rows.getFirst().get("source_location").toString()),query,matches);
             int executions=0;
-            if(query.includes(SnapshotSearchEngine.Kind.ERROR)) {
+            if(benchmark==null&&query.includes(SnapshotSearchEngine.Kind.ERROR)) {
                 var logs=jdbc.queryForList("""
                     SELECT j.id,left(j.stdout,2097152) AS stdout,left(j.stderr,2097152) AS stderr,j.technical_error
                     FROM execution_jobs j JOIN executions e ON e.id=j.id WHERE e.investigation_id=?

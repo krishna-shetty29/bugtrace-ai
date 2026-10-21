@@ -29,6 +29,9 @@ public class WorkerService {
         Instant started;
         boolean oomKilled, stdoutTruncated, stderrTruncated, snapshotVerifiedAfter;
         String installedSourceSha256, experimentContentHash;
+        boolean java21Verified;
+        int environmentValidatedContainers;
+        final List<Map<String,Object>> observedEnvironments=new ArrayList<>();
         final List<Map<String, Object>> stages = new ArrayList<>();
         String container;
         Process process;
@@ -44,6 +47,28 @@ public class WorkerService {
     private final Semaphore slots = new Semaphore(2);
     private final String snapshotId, hash, image;
     private final Path base, root, cacheSeed;
+    private BenchmarkWorkerRegistration benchmark;
+    @org.springframework.beans.factory.annotation.Autowired
+    public WorkerService(@Value("${worker.snapshot-id}") String snapshotId,
+        @Value("${worker.content-hash}") String hash,@Value("${worker.base-path}") String base,
+        @Value("${worker.workspace-root}") String root,@Value("${worker.cache-seed}") String cache,
+        @Value("${worker.container-image}") String image,
+        @Value("${WORKER_BENCHMARK_REGISTRATION_ID:}") String registration,
+        @Value("${WORKER_BENCHMARK_INVESTIGATION_ID:}") String investigation,
+        @Value("${worker.queue.backend-url:http://127.0.0.1:8080}") String backend) throws Exception {
+        this(snapshotId,hash,base,root,cache,image);
+        if(!registration.isBlank()||!investigation.isBlank()) {
+            benchmark=BenchmarkWorkerRegistration.fetch(backend,registration,investigation,snapshotId,hash,this.base,image);
+            if(!SnapshotFiles.hash(this.base).equals(hash))throw new IllegalArgumentException("Registered benchmark base hash mismatch");
+        } else if(java.nio.file.Files.isRegularFile(this.base.resolve("case.json"))) {
+            throw new IllegalArgumentException("Benchmark snapshots require explicit startup registration");
+        }
+    }
+    void validateQueueClaim(Map<String,Object> claim) {
+        if(!snapshotId.equals(String.valueOf(claim.get("snapshotId"))))throw new IllegalArgumentException("Queue snapshot differs from worker registration");
+        if(benchmark!=null)benchmark.validateClaim(claim);
+        else if(claim.get("benchmarkBinding")!=null)throw new IllegalArgumentException("A benchmark-registered worker is required");
+    }
 
     public WorkerService(@Value("${worker.snapshot-id}") String snapshotId,
         @Value("${worker.content-hash}") String hash, @Value("${worker.base-path}") String base,
@@ -70,7 +95,8 @@ public class WorkerService {
             return execution.result();
         }
         if (!job.snapshotId().toString().equals(snapshotId)) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Snapshot not registered");
-        if(job.generatedTest()!=null) {
+        if(benchmark!=null) benchmark.validateJob(job);
+        if(benchmark==null && job.generatedTest()!=null) {
             GeneratedTestOverlay.validate(job.generatedTest());
             if(job.operation()!=Operation.RUN_SELECTED_TEST || !GeneratedTestOverlay.CLASS.equals(job.testSelector()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Generated overlay requires its exact selected test");
         }
@@ -121,10 +147,17 @@ public class WorkerService {
                 deleteCache(oldReports);
             }
             if(e.job.generatedTest()!=null) {
-                e.installedSourceSha256=GeneratedTestOverlay.install(e.experiment,e.job.generatedTest());
+                e.installedSourceSha256=benchmark==null ? GeneratedTestOverlay.install(e.experiment,e.job.generatedTest()) : GeneratedTestOverlay.install(e.experiment,e.job.generatedTest(),benchmark.testPath(),benchmark.testClass());
                 e.experimentContentHash=SnapshotFiles.hash(e.experiment);
             }
             copyCache(e, deadline);
+            if(benchmark!=null) {
+                int probe=stage(e,List.of("ENVIRONMENT_PROBE"),deadline);
+                if(probe==-1)throw new TimeoutException("Container Java probe exceeded execution deadline");
+                if(probe!=0)throw new IOException("Container Java probe failed or timed out; inspect execution evidence");
+                BenchmarkEnvironmentPolicy.requireJava21(ExecutionEvidence.read(e.stderr)+"\n"+ExecutionEvidence.read(e.stdout));
+                e.java21Verified=true;
+            }
             // Dependency/class preparation executes plugins only inside the restricted container.
             int code = stage(e, List.of("test-compile"), deadline);
             if (code == 0 && !cancelled(e)) {
@@ -188,9 +221,11 @@ public class WorkerService {
         Instant stageStart = Instant.now();
         synchronized (e) { e.container = name; }
         try {
-            int created = command(e, DockerCommands.create(name, image, e.experiment, e.cache, goals), deadline);
+            boolean probe=benchmark!=null&&goals.equals(List.of("ENVIRONMENT_PROBE"));
+            int created = command(e,probe?DockerCommands.environmentProbe(name,image):DockerCommands.create(name, image, e.experiment, e.cache, goals), deadline);
             if (created == -1) return -1;
             if (created != 0) throw new IOException("Docker create failed; inspect worker.log");
+            if(benchmark!=null)verifyContainerEnvironment(e,name,probe,deadline);
             if (cancelled(e)) throw new CancellationException();
             synchronized (e) { if (!cancelled(e)) { e.state = "RUNNING"; if (e.started == null) e.started = Instant.now(); } }
             int attached = command(e, List.of("docker", "start", "--attach", name), deadline);
@@ -212,6 +247,26 @@ public class WorkerService {
             }
             return Integer.parseInt(values[1]);
         } finally { cleanup(name); synchronized (e) { e.container = null; } }
+    }
+    private void verifyContainerEnvironment(Execution e,String name,boolean probe,long deadline) throws Exception {
+        Path file=e.evidence.resolve("container-inspect-"+UUID.randomUUID()+".json");
+        Process process=null;
+        try {
+            if(System.nanoTime()>=deadline)throw new TimeoutException("Execution deadline expired before environment validation");
+            process=new ProcessBuilder("docker","inspect",name).redirectOutput(file.toFile()).redirectError(ProcessBuilder.Redirect.DISCARD).start();
+            long remaining=Math.min(TimeUnit.SECONDS.toNanos(5),Math.max(1,deadline-System.nanoTime()));
+            if(!process.waitFor(remaining,TimeUnit.NANOSECONDS))throw new TimeoutException("Container environment inspection timed out");
+            if(process.exitValue()!=0||Files.size(file)>262144)throw new IOException("Container environment inspection failed");
+            var data=tools.jackson.databind.json.JsonMapper.builder().build().readTree(Files.readString(file));
+            if(!data.isArray()||data.size()!=1)throw new IOException("Missing container inspection");
+            var observed=tools.jackson.databind.json.JsonMapper.builder().build().convertValue(data.get(0),Map.class);
+            BenchmarkEnvironmentPolicy.validate(observed,e.experiment,e.cache,probe);
+            e.environmentValidatedContainers++;
+            var facts=BenchmarkEnvironmentPolicy.facts(observed);facts.put("probe",probe);e.observedEnvironments.add(facts);
+        } finally {
+            if(process!=null)process.destroyForcibly();
+            Files.deleteIfExists(file);
+        }
     }
     private int command(Execution e, List<String> args, long deadline) throws Exception {
         if (System.nanoTime() >= deadline) return -1;
@@ -260,6 +315,15 @@ public class WorkerService {
         metadata.put("executionId", e.job.executionId().toString());
         metadata.put("snapshotId", e.job.snapshotId().toString());
         metadata.put("snapshotContentHash", hash);
+        if(benchmark!=null) {
+            metadata.put("benchmarkRegistrationId",benchmark.registrationId());
+            metadata.put("benchmarkInvestigationId",benchmark.investigationId());
+            metadata.put("benchmarkCaseId",benchmark.caseId());
+            metadata.put("registeredEnvironment",benchmark.environment());
+            metadata.put("environmentValidatedContainers",e.environmentValidatedContainers);
+            metadata.put("observedContainerEnvironments",List.copyOf(e.observedEnvironments));
+            metadata.put("containerJava21Verified",e.java21Verified);
+        }
         metadata.put("snapshotVerifiedAfter",e.snapshotVerifiedAfter);
         metadata.put("experimentWorkspace",e.experiment==null?null:e.experiment.toString());
         if(e.job.generatedTest()!=null) {
@@ -312,6 +376,8 @@ public class WorkerService {
                 if (!destination.startsWith(e.cache)) throw new IOException("Cache path escape");
                 if (Files.isDirectory(source)) Files.createDirectories(destination);
                 else if (Files.isRegularFile(source)) {
+                    if(benchmark!=null&&!BenchmarkEnvironmentPolicy.artifactFile(source.getFileName().toString()))
+                        throw new IOException("Benchmark cache contains a non-artifact file; prepare a dedicated dependency cache");
                     total += Files.size(source);
                     if (total > 3L * 1024 * 1024 * 1024) throw new IOException("Cache exceeds 3 GiB");
                     Files.copy(source, destination);

@@ -26,6 +26,7 @@ public class QueueClient {
     private Map<String,Object> active;
     private long lastHeartbeat,lastWarning;
     private boolean submitted;
+    private String accessToken="";
 
     public QueueClient(WorkerService engine,@Value("${worker.queue.backend-url}") String backend,
         @Value("${worker.queue.worker-id}") String workerId,@Value("${worker.snapshot-id}") String snapshotId,
@@ -36,6 +37,15 @@ public class QueueClient {
         if (!Set.of("127.0.0.1","localhost").contains(uri.getHost()) || !uri.getScheme().equals("http"))
             throw new IllegalArgumentException("This development queue client only connects to a localhost HTTP backend");
         if (!workerId.matches("[A-Za-z0-9_-]{1,64}")) throw new IllegalArgumentException("Invalid worker ID");
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public QueueClient(WorkerService engine,@Value("${worker.queue.backend-url}") String backend,
+        @Value("${worker.queue.worker-id}") String workerId,@Value("${worker.snapshot-id}") String snapshotId,
+        @Value("${worker.content-hash}") String expectedHash,@Value("${WORKER_ACCESS_TOKEN:}") String accessToken) {
+        this(engine,backend,workerId,snapshotId,expectedHash);
+        if(accessToken==null||!accessToken.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException("Set a snapshot-bound WORKER_ACCESS_TOKEN issued by the project owner");
+        this.accessToken=accessToken;
     }
 
     @Scheduled(fixedDelay=1000)
@@ -54,6 +64,7 @@ public class QueueClient {
             UUID snapshot=UUID.fromString(active.get("snapshotId").toString());
             if (!submitted) {
                 try {
+                    engine.validateQueueClaim(active);
                     engine.submit(new JobRequest(execution,snapshot,Operation.valueOf(active.get("operation").toString()),
                         (String)active.get("testSelector"),((Number)active.get("timeoutSeconds")).intValue(),
                         active.get("generatedTest")==null?null:mapper.convertValue(active.get("generatedTest"),GeneratedTestOverlay.Payload.class),
@@ -71,7 +82,7 @@ public class QueueClient {
                 progress.put("state",result.state()); progress.put("classification",result.classification());
                 Response response=post("/api/queue/"+active.get("jobId")+"/heartbeat",Map.of(
                     "workerId",workerId,"leaseToken",active.get("leaseToken"),"progress",progress));
-                if (response.status==409) { abandon(execution,snapshot); return; }
+                if (Set.of(401,403,409).contains(response.status)) { abandon(execution,snapshot); return; }
                 requireSuccess(response); lastHeartbeat=System.currentTimeMillis();
             }
             if (List.of("QUEUED","PREPARING","RUNNING","CANCEL_REQUESTED").contains(result.state())) return;
@@ -98,7 +109,7 @@ public class QueueClient {
         body.put("workerId",workerId); body.put("leaseToken",active.get("leaseToken"));
         body.put("metadata",metadata); body.put("stdout",stdout); body.put("stderr",stderr);
         Response response=post("/api/queue/"+active.get("jobId")+"/complete",body);
-        if (response.status==409) {
+        if (Set.of(401,403,409).contains(response.status)) {
             abandon(UUID.fromString(active.get("executionId").toString()),UUID.fromString(active.get("snapshotId").toString()));
             return;
         }
@@ -125,9 +136,11 @@ public class QueueClient {
     }
     private record Response(int status,String body) {}
     private Response post(String path,Object body) throws Exception {
-        HttpRequest request=HttpRequest.newBuilder(URI.create(backend+path)).timeout(Duration.ofSeconds(15))
+        HttpRequest.Builder builder=HttpRequest.newBuilder(URI.create(backend+path)).timeout(Duration.ofSeconds(15))
             .header("Content-Type","application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body))).build();
+            .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(body)));
+        if(!accessToken.isBlank())builder.header("Authorization","Bearer "+accessToken);
+        HttpRequest request=builder.build();
         var response=http.send(request,HttpResponse.BodyHandlers.ofString());
         return new Response(response.statusCode(),response.body());
     }

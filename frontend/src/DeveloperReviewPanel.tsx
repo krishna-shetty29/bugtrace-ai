@@ -1,3 +1,5 @@
+import { useContext } from 'react'
+import { TeamRoleContext } from './teamRole'
 import { useState } from 'react'
 
 type Counts = { tests: number; passed: number; failures: number; errors: number; skipped: number }
@@ -13,6 +15,9 @@ async function api<T>(path: string, body?: unknown): Promise<T> {
   return JSON.parse(text) as T
 }
 export default function DeveloperReviewPanel({ investigationId }: { investigationId: string }) {
+  const role = useContext(TeamRoleContext)
+  const canDecide = role === 'OWNER' || role === 'REVIEWER'
+  const canSubmit = canDecide || role === 'INVESTIGATOR'
   const base = `/api/investigations/${investigationId}/patch-reviews`
   const [entries, setEntries] = useState<Entry[]>([])
   const [patchId, setPatchId] = useState('a9ac9125-29d6-4832-a7a1-ce7659b8ad0d')
@@ -61,7 +66,7 @@ export default function DeveloperReviewPanel({ investigationId }: { investigatio
       <label>Patch UUID<input value={patchId} onChange={event => setPatchId(event.target.value)} /></label>
       <label>Verification UUID<input value={verificationId} onChange={event => setVerificationId(event.target.value)} /></label>
       <label>Diagnosis UUID<input value={diagnosisId} onChange={event => setDiagnosisId(event.target.value)} /></label>
-      <button disabled={busy} onClick={() => void action('register')}>Register proposal for review</button>
+      <button disabled={busy || !canSubmit} onClick={() => void action('register')}>Register proposal for review</button>
     </details>
     {entries.map(entry => <p key={entry.id}><button disabled={busy} onClick={() => void action('load', entry.id)}>{entry.id} · {entry.state}</button></p>)}
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
@@ -70,7 +75,7 @@ export default function DeveloperReviewPanel({ investigationId }: { investigatio
       <p>Snapshot: <code>{payload.report.snapshot.id}</code> · base hash: <code>{payload.report.snapshot.contentHash}</code></p>
       <p>Bound proposal/evidence hash: <code>{review.bundle_hash}</code></p>
       <p><strong>Full-suite failures: {payload.summary.fullSuiteFailures}.</strong> {payload.summary.fullSuiteFailures > 0 ? 'The complete suite is not green. Inspect its actual failure and explicitly acknowledge the recognized legacy exception before approval.' : 'Inspect all actual results before deciding.'}</p>
-      <button disabled={busy} onClick={() => void action('verify')}>Revalidate saved evidence</button>{' '}
+      <button disabled={busy || !canSubmit} onClick={() => void action('verify')}>Revalidate saved evidence</button>{' '}
       <button disabled={busy} onClick={() => setView('evidence')}>Inspect evidence</button>{' '}
       <button disabled={busy} onClick={() => setView('diff')}>Inspect diff</button>{' '}
       <button disabled={busy} onClick={() => setView('reproduction')}>Inspect reproduction</button>{' '}
@@ -89,7 +94,7 @@ export default function DeveloperReviewPanel({ investigationId }: { investigatio
         <h3>Recorded environment</h3>{payload.report.environment.images.map(image => <p key={image}><code>{image}</code></p>)}<p>{payload.report.environment.resourceLimits}</p>
         <h3>Unverified and limitations</h3><ul>{payload.report.unverified.map((item, index) => <li key={index}>{item}</li>)}</ul>
       </>}
-      {pending && <><h3>Record a developer decision</h3>
+      {pending && canDecide && <><h3>Record a developer decision</h3>
         {([['evidenceInspected', 'I inspected the diagnosis, supporting executions and verification results.'], ['diffInspected', 'I inspected the actual diff and allowed change scope.'], ['reproductionInspected', 'I inspected the preserved reproduction and before/after source hashes.'], ['limitationsAcknowledged', 'I acknowledge the unverified behaviors and limitations.'], ['acceptSuiteException', 'I explicitly accept the documented legacy test exception; the full suite remains failed.']] as const).map(([key, label]) => <p key={key}><label><input type="checkbox" disabled={busy} style={{ display: 'inline-block', width: 'auto', marginRight: 8 }} checked={inspected[key]} onChange={event => setInspected({ ...inspected, [key]: event.target.checked })} /> {label}</label></p>)}
         <label>Decision reason<textarea maxLength={2000} value={reason} onChange={event => setReason(event.target.value)} /></label>
         <button disabled={busy || !canApprove} onClick={() => void action('APPROVE')}>Approve proposal only</button>{' '}

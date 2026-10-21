@@ -101,5 +101,8 @@ public final class GeneratedReproduction {
             }
             """;
     }
+    public static BenchmarkReproduction.Spec parseBenchmark(String text,Set<String> allowed,BenchmarkCatalog.Registration registration) {
+        return BenchmarkReproduction.parse(text,allowed,registration);
+    }
     private static IllegalArgumentException bad(String message){return new IllegalArgumentException(message);}
 }

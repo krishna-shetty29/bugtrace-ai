@@ -42,25 +42,29 @@ class QueueClientTest {
     }
 
     @Test void claimsHeartbeatsAndUploadsStructuredEvidence() throws Exception {
-        run(false);
+        run(200);
     }
     @Test void cancelsLocalAttemptWhenHeartbeatIsFencedOut() throws Exception {
-        run(true);
+        run(409);
     }
-    private void run(boolean loseLease) throws Exception {
+    @Test void cancelsLocalAttemptWhenWorkerKeyIsRevoked()throws Exception {run(401);}
+    @Test void cancelsLocalAttemptWhenWorkerPermissionIsRevoked()throws Exception {run(403);}
+    private void run(int heartbeatStatus) throws Exception {
+        boolean loseLease=heartbeatStatus!=200;
         UUID job=UUID.randomUUID(),snapshot=UUID.randomUUID(),attempt=UUID.randomUUID(),token=UUID.randomUUID();
         var engine=new Engine(temp,snapshot,attempt,!loseLease);
         var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         AtomicInteger beats=new AtomicInteger(),completions=new AtomicInteger();
         AtomicReference<Map> uploaded=new AtomicReference<>();
         server.createContext("/",exchange->{
+            assertEquals("Bearer "+"k".repeat(43),exchange.getRequestHeaders().getFirst("Authorization"));
             String path=exchange.getRequestURI().getPath();
             int status=200;String body="{}";
             if (path.equals("/api/queue/claim")) {
                 body=mapper.writeValueAsString(Map.of("jobId",job.toString(),"snapshotId",snapshot.toString(),
                     "executionId",attempt.toString(),"leaseToken",token.toString(),"operation","RUN_SELECTED_TEST",
                     "testSelector","CheckoutIdempotencyTest","timeoutSeconds",120,"attempt",1));
-            } else if (path.endsWith("/heartbeat")) { beats.incrementAndGet(); if (loseLease) status=409; }
+            } else if (path.endsWith("/heartbeat")) { beats.incrementAndGet(); if (loseLease) status=heartbeatStatus; }
             else if (path.endsWith("/complete")) {
                 completions.incrementAndGet();
                 uploaded.set(mapper.readValue(exchange.getRequestBody().readAllBytes(),Map.class));
@@ -71,7 +75,7 @@ class QueueClientTest {
         });
         server.start();
         try {
-            var client=new QueueClient(engine,"http://127.0.0.1:"+server.getAddress().getPort(),"test-worker",snapshot.toString(),"a".repeat(64));
+            var client=new QueueClient(engine,"http://127.0.0.1:"+server.getAddress().getPort(),"test-worker",snapshot.toString(),"a".repeat(64),"k".repeat(43));
             client.poll();
             assertEquals(1,beats.get());
             if (loseLease) { assertEquals(1,engine.cancellations);assertEquals(0,completions.get()); }

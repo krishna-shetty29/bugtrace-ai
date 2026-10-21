@@ -12,23 +12,32 @@ public class AiEvidenceService {
     public record Evidence(String id,Ref reference,String origin,String sourceRef,String revision,String lineKind,
         int startLine,int endLine,String sourceHash,String text){}
     private final JdbcTemplate jdbc;private final SnapshotImportService snapshots;private final DocumentContextService documents;
-    public AiEvidenceService(JdbcTemplate jdbc,SnapshotImportService snapshots,DocumentContextService documents){this.jdbc=jdbc;this.snapshots=snapshots;this.documents=documents;}
+    private final BenchmarkRecordScope benchmarkScope;
+    public AiEvidenceService(JdbcTemplate jdbc,SnapshotImportService snapshots,DocumentContextService documents){this(jdbc,snapshots,documents,null);}
+    @org.springframework.beans.factory.annotation.Autowired
+    public AiEvidenceService(JdbcTemplate jdbc,SnapshotImportService snapshots,DocumentContextService documents,BenchmarkRecordScope scope){this.jdbc=jdbc;this.snapshots=snapshots;this.documents=documents;this.benchmarkScope=scope;}
     public List<Evidence> available(UUID investigation){
+        var benchmark=benchmarkScope==null?null:benchmarkScope.optional(investigation);
         String hash=snapshots.verifySnapshot(investigation).get("contentHash").toString();var list=new ArrayList<Evidence>();
         var indexes=jdbc.queryForList("SELECT s.id FROM semantic_indexes s JOIN investigations i ON i.snapshot_id=s.snapshot_id WHERE i.id=? AND s.content_hash=? AND s.chunker_version=? AND s.state IN ('COMPLETE','PARTIAL') ORDER BY s.created_at DESC,s.id LIMIT 1",investigation,hash,SemanticChunks.VERSION);
         if(!indexes.isEmpty()){
             UUID index=(UUID)indexes.getFirst().get("id");for(var row:jdbc.queryForList("SELECT chunk_key FROM semantic_chunks WHERE index_id=? ORDER BY file_path,start_line,end_line LIMIT 80",index))list.add(resolveOne(investigation,hash,new Ref("CODE",index,row.get("chunk_key").toString(),null)));
         }
+        if(benchmark==null) {
         var contexts=jdbc.queryForList("SELECT id FROM context_indexes WHERE investigation_id=? AND content_hash=? AND algorithm_version=? AND state='COMPLETE' ORDER BY created_at DESC,id LIMIT 1",investigation,hash,ContextDocuments.VERSION);
         if(!contexts.isEmpty()){
             UUID index=(UUID)contexts.getFirst().get("id");for(var row:jdbc.queryForList("SELECT chunk_number FROM context_chunks WHERE index_id=? ORDER BY origin,source_ref,start_line LIMIT 80",index))list.add(resolveOne(investigation,hash,new Ref("CONTEXT",index,null,((Number)row.get("chunk_number")).intValue())));
         }
+        }
+        if(benchmark!=null)for(var item:list)BenchmarkRecordScope.validateEvidence(benchmark,item);
         return List.copyOf(list);
     }
     public List<Evidence> resolve(UUID investigation,List<Ref> references){
         if(references==null||references.isEmpty()||references.size()>8)throw bad("Select 1 to 8 saved evidence items");
+        var benchmark=benchmarkScope==null?null:benchmarkScope.optional(investigation);
+        if(benchmark!=null&&references.stream().anyMatch(ref->ref==null||!"CODE".equals(ref.kind())))throw bad("Benchmark model evidence permits registered case code only");
         String hash=snapshots.verifySnapshot(investigation).get("contentHash").toString();var list=new ArrayList<Evidence>();var ids=new HashSet<String>();int size=0;
-        for(var ref:references){var evidence=resolveOne(investigation,hash,ref);if(!ids.add(evidence.id()))throw bad("Duplicate evidence item");list.add(evidence);size+=evidence.text().length();}
+        for(var ref:references){var evidence=resolveOne(investigation,hash,ref);if(benchmark!=null)BenchmarkRecordScope.validateEvidence(benchmark,evidence);if(!ids.add(evidence.id()))throw bad("Duplicate evidence item");list.add(evidence);size+=evidence.text().length();}
         if(size>12000)throw bad("Selected evidence exceeds 12000 characters");
         return List.copyOf(list);
     }

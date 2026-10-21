@@ -23,11 +23,12 @@ public class DurableQueueService {
     public Map<String,Object> enqueue(UUID investigationId, CreateJob job) {
         try { QueueContracts.validate(job); } catch (IllegalArgumentException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage()); }
         var rows = jdbc.queryForList("""
-            SELECT s.id, s.source_location, s.content_hash FROM investigations i
+            SELECT s.id, s.source_location, s.content_hash, s.module_path FROM investigations i
             JOIN repository_snapshots s ON s.id=i.snapshot_id WHERE i.id=?
             """, investigationId);
         if (rows.isEmpty()) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Investigation not found");
         var snapshot = rows.getFirst();
+        if(Objects.toString(snapshot.get("module_path"),"").startsWith("cases/case-"))throw reject("Use the case-bound benchmark experiment endpoint; generic execution bypasses run budgets");
         if (snapshot.get("source_location") == null || snapshot.get("content_hash") == null)
             throw reject("Import the snapshot before requesting execution");
         UUID id = UUID.randomUUID();
@@ -36,7 +37,7 @@ public class DurableQueueService {
             INSERT INTO execution_jobs(id,snapshot_id,operation,test_selector,timeout_seconds)
             VALUES (?,?,?,?,?)
             """, id, snapshot.get("id"), job.operation().name(), job.testSelector(), job.timeoutSeconds());
-        return view(id);
+        TeamAccessContext.record(jdbc,"EXECUTION_QUEUED",id);return view(id);
     }
 
     @Transactional
@@ -46,6 +47,24 @@ public class DurableQueueService {
         jdbc.update("UPDATE execution_jobs SET generated_test=CAST(? AS jsonb) WHERE id=?",json(GeneratedReproduction.overlay(spec)),job.get("executionId"));
         return job;
     }
+    /** Validated draft only: generic benchmark worker support is not yet enabled. */
+    public Map<String,Object> prepareBenchmark(UUID registrationId,UUID investigation,UUID snapshot,String platformHash,BenchmarkCatalog.Registration context,BenchmarkReproduction.Spec spec) {
+        var rows=jdbc.queryForList("SELECT b.*,r.registration_hash FROM benchmark_snapshot_imports b JOIN benchmark_case_registrations r ON r.id=b.registration_id WHERE b.investigation_id=? AND b.registration_id=?",investigation,registrationId);
+        if(rows.isEmpty())throw reject("Benchmark execution draft has no registered import");var binding=rows.getFirst();
+        if(!snapshot.equals(binding.get("snapshot_id"))||!platformHash.equals(binding.get("platform_content_hash"))||!context.caseId().equals(binding.get("case_id"))||!context.releaseCommit().equals(binding.get("release_commit"))||!context.snapshotContentHash().equals(binding.get("benchmark_content_hash"))||!DiagnosisIntegrity.hash(context).equals(binding.get("registration_hash")))throw reject("Benchmark execution draft binding differs");
+        BenchmarkCatalog.environment(mapper.valueToTree(context.environment()));
+        return BenchmarkReproduction.executionDraft(registrationId,investigation,snapshot,platformHash,context,spec);
+    }
+
+    /** Called only inside the locked benchmark-run reservation transaction. */
+    Map<String,Object> enqueueBenchmark(UUID investigation,UUID snapshot,String selector,int timeout,java.time.Instant deadline,Object overlay,Map<String,Object> binding) {
+        if(!BenchmarkExecutionPolicy.CLASS.equals(selector)||timeout<1||timeout>120)throw reject("Invalid registered benchmark execution contract");
+        UUID id=UUID.randomUUID();
+        jdbc.update("INSERT INTO executions(id,investigation_id,command) VALUES (?,?,?)",id,investigation,"RUN_SELECTED_TEST");
+        jdbc.update("INSERT INTO execution_jobs(id,snapshot_id,operation,test_selector,timeout_seconds,max_attempts,not_after,generated_test,benchmark_binding) VALUES (?,?,'RUN_SELECTED_TEST',?,?,1,?,CAST(? AS jsonb),CAST(? AS jsonb))",id,snapshot,selector,timeout,OffsetDateTime.ofInstant(deadline,java.time.ZoneOffset.UTC),json(overlay),json(binding));
+        TeamAccessContext.record(jdbc,"EXECUTION_QUEUED",id);return view(id);
+    }
+
     @Transactional
     public Map<String,Object> claim(Claim request) {
         // Serialize simultaneous requests from the same named laptop worker.
@@ -65,7 +84,7 @@ public class DurableQueueService {
                 WHERE queue_state='QUEUED' AND snapshot_id=? AND attempts<max_attempts
                     AND (not_after IS NULL OR not_after>clock_timestamp()+INTERVAL '1 second')
                 ORDER BY created_at,id LIMIT 1 FOR UPDATE SKIP LOCKED)
-            RETURNING id,snapshot_id,operation,test_selector,timeout_seconds,attempts,generated_test,not_after
+            RETURNING *
             """, request.workerId(), token, attempt, request.snapshotId());
         if (claimed.isEmpty()) return null;
         var row = claimed.getFirst();
@@ -85,8 +104,9 @@ public class DurableQueueService {
         result.put("timeoutSeconds", row.get("timeout_seconds")); result.put("attempt", row.get("attempts"));
         result.put("leaseSeconds", 45);
         result.put("notAfter",row.get("not_after")==null?null:InvestigationLoopPolicy.instant(row.get("not_after")).toString());
+        result.put("benchmarkBinding",row.get("benchmark_binding")==null?null:mapper.readTree(row.get("benchmark_binding").toString()));
         result.put("generatedTest",row.get("generated_test")==null?null:mapper.readTree(row.get("generated_test").toString()));
-        return result;
+        TeamAccessContext.record(jdbc,"EXECUTION_CLAIMED",id);return result;
     }
 
     @Transactional
@@ -115,6 +135,14 @@ public class DurableQueueService {
         try { QueueContracts.validateResult(completion.metadata(), (UUID)row.get("attempt_execution_id"),
                 (UUID)row.get("snapshot_id"), (String)row.get("operation"), (String)row.get("test_selector"), expectedHash); }
         catch (IllegalArgumentException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST,e.getMessage()); }
+        if(row.get("benchmark_binding")!=null) {
+            try {
+                BenchmarkExecutionPolicy.validateResult(completion.metadata(),mapper.readTree(row.get("benchmark_binding").toString()));
+                var metadataNode=mapper.valueToTree(completion.metadata());
+                if((!"INFRASTRUCTURE_ERROR".equals(metadataNode.path("classification").asText())||metadataNode.has("stdout"))&&(!ContextDocuments.hash(completion.stdout()).equals(metadataNode.path("stdout").path("sha256").asText())||!ContextDocuments.hash(completion.stderr()).equals(metadataNode.path("stderr").path("sha256").asText())))throw new IllegalArgumentException("Benchmark log bytes differ from worker hashes");
+            }
+            catch(IllegalArgumentException ex){throw reject(ex.getMessage());}
+        }
         String metadata = json(completion.metadata());
         if (metadata.length() > 2097152) throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Metadata exceeds 2 MiB");
         String classification = completion.metadata().get("classification").toString();
@@ -134,7 +162,7 @@ public class DurableQueueService {
                 technical_error_code=?,technical_error_message=? WHERE id=?
             """,state,code,classification,state.equals("ERROR") ? classification : null,
             completion.metadata().get("technicalError"),id);
-        return view(id);
+        TeamAccessContext.record(jdbc,"EXECUTION_RESULT_"+classification,id);return view(id);
     }
 
     @Transactional

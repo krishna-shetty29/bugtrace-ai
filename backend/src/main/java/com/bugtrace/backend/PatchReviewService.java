@@ -61,6 +61,7 @@ public class PatchReviewService {
             if(!row.get("bundle_hash").equals(input.expectedBundleHash()))throw conflict("Review bytes changed");
             String state=input.action().equals("APPROVE")?"APPROVED":"REJECTED";
             jdbc.update("UPDATE developer_patch_reviews SET state=?,decision_reason=?,suite_exception_accepted=?,reviewed_at=clock_timestamp() WHERE id=?",state,input.reason(),state.equals("APPROVED")&&input.acceptSuiteException(),id);
+            TeamAccessContext.record(jdbc,state.equals("APPROVED")?"PATCH_APPROVED":"PATCH_REJECTED",id);
             event(id,state,Map.of("reason",input.reason(),"bundleHash",input.expectedBundleHash(),"suiteExceptionAccepted",state.equals("APPROVED")&&input.acceptSuiteException(),"evidenceInspected",input.evidenceInspected(),"diffInspected",input.diffInspected(),"reproductionInspected",input.reproductionInspected(),"limitationsAcknowledged",input.limitationsAcknowledged(),"automaticApplication",false));return null;
         });return get(investigation,id);
     }

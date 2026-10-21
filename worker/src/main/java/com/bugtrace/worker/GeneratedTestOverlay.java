@@ -10,13 +10,22 @@ public final class GeneratedTestOverlay {
     public static final String PATH="src/test/java/com/bugtrace/fixtures/checkout_timeout/GeneratedCheckoutReproductionTest.java";
     public record Payload(String path,String className,String source,String sourceSha256,String expectedFailureSignature) {}
     public static void validate(Payload payload) {
-        if(payload==null || !PATH.equals(payload.path()) || !CLASS.equals(payload.className()) || payload.source()==null
+        validate(payload,PATH,CLASS);
+    }
+    static void validate(Payload payload,String approvedPath,String approvedClass) {
+        boolean checkout=PATH.equals(approvedPath)&&CLASS.equals(approvedClass);
+        boolean benchmark=BenchmarkWorkerRegistration.TEST_PATH.equals(approvedPath)&&BenchmarkWorkerRegistration.TEST_CLASS.equals(approvedClass);
+        if(!checkout&&!benchmark)throw new IllegalArgumentException("Unsupported registered test contract");
+        if(payload==null || !approvedPath.equals(payload.path()) || !approvedClass.equals(payload.className()) || payload.source()==null
             || payload.source().length()>12000 || payload.source().getBytes(StandardCharsets.UTF_8).length>16384
             || !sha(payload.source()).equals(payload.sourceSha256()))throw new IllegalArgumentException("Invalid generated-test overlay path, class, size or source hash");
     }
     public static String install(Path experiment,Payload payload) throws Exception {
-        validate(payload);SnapshotFiles.requireRealPath(experiment);
-        Path root=experiment.toAbsolutePath().normalize(),target=root.resolve(PATH).normalize();
+        return install(experiment,payload,PATH,CLASS);
+    }
+    static String install(Path experiment,Payload payload,String approvedPath,String approvedClass) throws Exception {
+        validate(payload,approvedPath,approvedClass);SnapshotFiles.requireRealPath(experiment);
+        Path root=experiment.toAbsolutePath().normalize(),target=root.resolve(approvedPath).normalize();
         if(!target.startsWith(root))throw new IllegalArgumentException("Generated path escapes experiment");
         Path walk=root;
         for(Path part:root.relativize(target.getParent())) {

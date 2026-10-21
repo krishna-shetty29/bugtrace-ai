@@ -53,6 +53,7 @@ public class InvestigationLoopService {
             }
             if(jdbc.queryForObject("SELECT count(*) FROM investigation_loops WHERE investigation_id=? AND state IN ('READY_HYPOTHESIS','BUSY','PLAN_READY','PLAN_VALIDATED','DRAFT_READY','WAITING','RESULT_READY','COMPILE_ERROR')",Integer.class,investigation)>0)throw conflict("Finish or stop the existing loop first");
             var row=jdbc.queryForMap("SELECT i.*,s.module_path FROM investigations i JOIN repository_snapshots s ON s.id=i.snapshot_id WHERE i.id=?",investigation);
+            if(String.valueOf(row.get("module_path")).startsWith("cases/case-"))throw bad("Use the separate benchmark-reproduction workflow for a registered benchmark import");
             if(!"fixtures/checkout-timeout".equals(row.get("module_path")))throw bad("Only the trusted checkout fixture is supported");
             var report=new LinkedHashMap<String,Object>();for(String key:List.of("title","bug_description","expected_behavior","observed_behavior"))report.put(key,row.get(key));
             if(json.writeValueAsString(report).length()>5000)throw bad("Report exceeds the loop's 5000-character input limit");

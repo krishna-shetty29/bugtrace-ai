@@ -23,6 +23,18 @@ public final class DockerCommands {
         args.addAll(goals);
         return List.copyOf(args);
     }
+    public static List<String> environmentProbe(String name,String image) {
+        var args=new ArrayList<>(create(name,image,Path.of("unused-source"),Path.of("unused-cache"),List.of()));
+        int imageIndex=args.indexOf(image);
+        args.subList(imageIndex+1,args.size()).clear();
+        for(int index=0;index<args.size();) {
+            if(args.get(index).equals("--mount")||args.get(index).equals("--workdir")) {args.remove(index);args.remove(index);}
+            else index++;
+        }
+        args.set(args.indexOf("--entrypoint")+1,"java");
+        args.add("-XshowSettings:properties");args.add("-version");
+        return List.copyOf(args);
+    }
     private static String mount(Path path) {
         String value = path.toAbsolutePath().normalize().toString();
         if (value.contains(",") || value.contains("\n") || value.contains("\r")) throw new IllegalArgumentException("Unsupported mount path");

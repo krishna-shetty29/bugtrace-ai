@@ -111,6 +111,7 @@ public class RoleToolGateway {
                 var selected=evidence.resolve(investigation,refs);
                 Object result=dispatch(investigation,run,id,AgentRolePolicy.role(current),tool,args,row,snapshot,selected);
                 snapshots.verifySnapshot(investigation);
+                if(result instanceof Map<?,?> artifact&&"PATCH_DRAFT".equals(artifact.get("kind")))TeamAccessContext.record(jdbc,"PATCH_GENERATED",id);
                 String output=settings.redact(json.writeValueAsString(result));
                 if(output.getBytes(StandardCharsets.UTF_8).length>32768)throw new IllegalArgumentException("Tool result exceeds 32 KiB; narrow the request");
                 jdbc.update("UPDATE role_tool_calls SET state='SUCCEEDED',result=CAST(? AS jsonb),finished_at=clock_timestamp() WHERE id=?",output,id);

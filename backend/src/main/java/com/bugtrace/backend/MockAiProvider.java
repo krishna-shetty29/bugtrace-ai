@@ -3,6 +3,12 @@ package com.bugtrace.backend;
 /** Deterministic plumbing check; never contacts a model or pretends to diagnose the bug. */
 public final class MockAiProvider implements AiProvider {
     @Override public Response generate(Request request){
+        if(request.instructions().equals(BenchmarkReproduction.PLAN_INSTRUCTIONS)) {
+            var mapper=tools.jackson.databind.json.JsonMapper.builder().build();var input=mapper.readTree(request.input());
+            var ids=new java.util.ArrayList<String>();for(var item:input.path("evidence"))if(ids.size()<4)ids.add(item.path("id").asString());
+            var plan=new BenchmarkReproduction.Plan("NEEDS_EVIDENCE","MOCK plumbing response only; no benchmark hypothesis has been evaluated.",ids,java.util.List.of("Use an intentional live provider for model-performance evaluation."),"MOCK intentionally abstains for every case; this is not a scored negative-control result.");
+            return new Response("mock-v1","mock-benchmark-plan",mapper.writeValueAsString(plan),new Usage(null,null,null,"MOCK_NOT_MEASURED"),false);
+        }
         if(request.instructions().equals(DiagnosisDocument.INSTRUCTIONS)) {
             var mapper=tools.jackson.databind.json.JsonMapper.builder().build();var input=mapper.readTree(request.input());var fields=mapper.readTree(input.get("question").asString());
             var codes=new java.util.ArrayList<DiagnosisDocument.CodeLocation>();

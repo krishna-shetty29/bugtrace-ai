@@ -56,6 +56,13 @@ public class AiCallService {
     Map<String,Object> submitDiagnosis(UUID investigation,Submission submission) {
         return submitVersioned(investigation,submission,DiagnosisDocument.VERSION,DiagnosisDocument.INSTRUCTIONS,10000);
     }
+    Map<String,Object> submitBenchmark(UUID investigation,Submission submission,boolean generated) {
+        return submitVersioned(investigation,submission,BenchmarkReproduction.VERSION+(generated?":TEST":":PLAN"),generated?BenchmarkReproduction.TEST_INSTRUCTIONS:BenchmarkReproduction.PLAN_INSTRUCTIONS,10000);
+    }
+    Map<String,Object> submitBenchmarkRepair(UUID investigation,Submission submission) {
+        String instructions=BenchmarkReproduction.TEST_INSTRUCTIONS+"\nRepair only the supplied generated-file compiler diagnostics. Preserve the intended assertion, fault scenario, evidence IDs, failure signature and every assertion expression exactly. Return the same six-field JSON contract. Do not claim execution or modify production files.";
+        return submitVersioned(investigation,submission,BenchmarkReproduction.VERSION+":REPAIR",instructions,18000);
+    }
     private Map<String,Object> submitVersioned(UUID investigation,Submission submission,String promptVersion,String instructions,int questionLimit){
         if(submission==null||submission.clientRequestId()==null||submission.question()==null||submission.question().isBlank()||submission.question().length()>questionLimit)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Supply a request UUID, a nonempty report within the operation limit and selected evidence");
         var selected=evidence.resolve(investigation,submission.evidence());UUID id=submission.clientRequestId();
@@ -74,6 +81,7 @@ public class AiCallService {
                 INSERT INTO ai_model_calls(id,investigation_id,snapshot_id,request_hash,provider,requested_model,prompt_version,question,instructions,user_input,input_evidence,state,usage_kind)
                 SELECT ?,i.id,i.snapshot_id,?,?,?,?,?,?,?,CAST(? AS jsonb),'STARTED','UNAVAILABLE' FROM investigations i WHERE i.id=?
                 """,id,requestHash,settings.provider(),settings.model(),promptVersion,question,instructions,input,selectedJson,investigation);
+                if(inserted==1)TeamAccessContext.record(jdbc,"MODEL_SUBMISSION",id);
                 if(inserted!=1)throw new ResponseStatusException(HttpStatus.NOT_FOUND,"Investigation no longer exists");}
             catch(DuplicateKeyException ex){return replay(investigation,id,requestHash,jdbc.queryForMap("SELECT investigation_id,request_hash,state FROM ai_model_calls WHERE id=?",id));}
             try{
