@@ -1,0 +1,802 @@
+[
+  {
+    "path": ".github/workflows/ci.yml",
+    "sha256": "50848fa1a47097c584d7ce0f9cf02e06de905e60a3ca3fc46a117090d264933d"
+  },
+  {
+    "path": "backend/pom.xml",
+    "sha256": "175c5688497e94169cf04ce3ca8575592106d4c15a0f585f6e891848f2290111"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AgentRoleOutput.java",
+    "sha256": "ce3f261105c26745f35331e14671f8edd9cc7f833f4a177981d16670436307b6"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AgentRolePolicy.java",
+    "sha256": "78abf24b7ce49234ba18a1ed3b85978d858e4bf004add9666cadd3a99c82a74b"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AgentWorkflowController.java",
+    "sha256": "a5793adc60104f267dc50172b959eb3fadafbd364600e79d1ef4b473de2ab84b"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AgentWorkflowService.java",
+    "sha256": "4a6181383566bcf0be41f355aef4e28722acf95bb9ee33855f184f8f6502e5c1"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiCallController.java",
+    "sha256": "20ff6ea0c41569d3e8480d91f363ce31b857d44225e469b42cdbeffb5a8875cc"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiCallService.java",
+    "sha256": "1e9a2d1252e584ca05f408261179faa845385eba0c2112552a72ed5b6aa588a1"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiEvidenceService.java",
+    "sha256": "a3a1ba8b56d810554c537d78941b6feb86780f38f00d773755f396514b48ef47"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiProvider.java",
+    "sha256": "8414e706204a98c9d79538b0d4e9bc90d111028868bb81de00b8e8f5f6b249f4"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiProviderConfiguration.java",
+    "sha256": "5c3283a8b9f5a3eb4989b217808b5e967bb99479f594a50cba4f79984e73bf04"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/AiSettings.java",
+    "sha256": "2cb9aa6f5a2c2bb487b4b6614bc094de2e7b60164a9f2223a6932511eb25cf64"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ApiExceptionHandler.java",
+    "sha256": "ea8fcebe28e68821c9c6b3531d117bb8242f7f01e452f94e4eb323128e1393b5"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BackendApplication.java",
+    "sha256": "da89fbcb85096de2af770ad05d59da549db955428f2771434da4d8f41eaea0f1"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkBrowserController.java",
+    "sha256": "d6a67ef9f4b616849facc1df081c80a8f01a05941f331b15a029fdb74831c773"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkBrowserService.java",
+    "sha256": "f264ced81a507651ecbddf65328f70ee59a7cb44587dcd29275cc49aba1aa8b6"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkCaseRecordsController.java",
+    "sha256": "7a6accf714237a976eccda29e43aac9fda8900e3093d5228959f529ea0e255b5"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkCaseRecordsService.java",
+    "sha256": "dabad1daaa7000af5626842d5ecf4fbd39c60674eebcd183678989feada25a93"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkCatalog.java",
+    "sha256": "849ac10071177f33b8966771404c78ae6f570e48eae3b19a797f99a47a4c07ce"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkExecutionController.java",
+    "sha256": "adae5e3276de61c0c59c8ae5d4e71b018ae5162fe4b751b421fb7fa62d74bd5a"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkExecutionPolicy.java",
+    "sha256": "121e89d4542138905de4c183d06105d1ff291d03920891c57bae45b3d9d74098"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkExecutionService.java",
+    "sha256": "769af50e714560f8a57529c9faf020efa1edcf00e0f3a8c890233881569cb478"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkRecordScope.java",
+    "sha256": "e7e10cb425035d9847084c0d771606dea13e86b07ef4c323e29e25f5213798f5"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkRegistrationController.java",
+    "sha256": "f3362ade50058d82ae2c6734e1fbd4c5032e7ba305497aef07218b74107c9ee6"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkRegistrationService.java",
+    "sha256": "9b831a5330229d23b690d299d72f8b18598dae0ceb46da40f500fdb296b3e286"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkReproduction.java",
+    "sha256": "3003cc174148ab526e3f5e75ca43a41ddb20b35b2a59a24f72cb008303321630"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkReproductionController.java",
+    "sha256": "bb22f96171daad5d694a07dfd54033a3fc314a0d1bf3e5e13cbc31b907576f6b"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkReproductionService.java",
+    "sha256": "2a2e4f6c09a591b510ac5ad55318c429b858d2fbb0f6d6c47ff47293a9ef3ecc"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkSnapshotController.java",
+    "sha256": "2d844070dce85e77b893e7a2cf1b0b7754784186c8024556fd9e411aa1d8aba6"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkSnapshotFiles.java",
+    "sha256": "d5fe1137c6cb1855721504b94dde7c7567165329cd98131477150d6196a87c9e"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/BenchmarkSnapshotService.java",
+    "sha256": "fd00b6930e9f90c69e1ef8f26126227a9836b2fa24974c00f2c15775e9ac329a"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ContextDocuments.java",
+    "sha256": "028e4cacdfc7fb14734597fdb4e37387cbb3310e5bda79f2b3d2e7842da2e8fb"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ControlledScenarioReport.java",
+    "sha256": "61d1fedde2a2d7789805eb9339e3f9ddcfc4955802698b2037ca68db5c6f539f"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ControlledScenarioSource.java",
+    "sha256": "e1812e6fdcfd022ae14ab3491289279be9e1f08a52cf8eb013fa9f5936923964"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DiagnosisCitations.java",
+    "sha256": "8f4dad2e880113b0fbcd65faa631b3308791fcdf718d5c60da17ffe515c6f6db"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DiagnosisController.java",
+    "sha256": "437a9e97efb8194e560a0d17d3a38b9a1827fd9f993d2946dfeecef537cb98d9"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DiagnosisDocument.java",
+    "sha256": "6e8b424a76e1fdfdfaeaaea216336bbd5e91c417d54f19dbfc4e0ae2b4bdc594"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DiagnosisIntegrity.java",
+    "sha256": "d297450e8b8b160848dd7c9c2ea2d83f496fd3a67c5148c6b23eb702ce5bb6b6"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DiagnosisService.java",
+    "sha256": "1c3a3518a2f2ede1dc71673212b685b46446c84588a1955e2ab73c7ee4e5f73e"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DocumentContextController.java",
+    "sha256": "80a38273ba58c4c4b1f52cf57782a87babdf5535a940a14f90884eef7b5ec000"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DocumentContextService.java",
+    "sha256": "8fb92702d0d3fe6d4c3ee1cb38b6a9e5f523734cedd807d1d2997c84e0010a38"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DurableQueueController.java",
+    "sha256": "f7af0ebb8b41520e86889c11d8ed7fa4b6abdb1eaef8afa13b5b64df658d24ac"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/DurableQueueService.java",
+    "sha256": "845e0a4425e78b3502a93cd5df01d3ab4f84b2c4a283f70604e7a9309836da4e"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/EvidenceAnalyzerController.java",
+    "sha256": "060524dd3a4aa5d2ac16c2d3a80666af7771a1db7e8db527a36e6d4e1186eec2"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/GeneratedReproduction.java",
+    "sha256": "b4ee7e7be2c3fc83a74a77555205e52ccbfc8e4c25399a084d9b6e477a951bfb"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/GitSnapshot.java",
+    "sha256": "4aeaa82af2d50a4e49e99b6dcc12fd0472487fcdbfd6e824e17bf73e7aa6b1f7"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/HealthController.java",
+    "sha256": "6247f6a6214c01848835c0d2a6e585d2f4a64497736713c67cba65aced33a2bb"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/HelloController.java",
+    "sha256": "67a4d8994515e4718cf66cf59e9d5d5d52678d1fa21a4a0c9c3fb95bfd6dbeac"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/HybridRanking.java",
+    "sha256": "5d9070b9302774817c6f7425fa3f0a2bdced8b45465a4afdf590f9c358d02dcd"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/HypothesisOutput.java",
+    "sha256": "fc2414b1cc0953f9fa98166f20b9b94098d5ac4d1bed77c00f7818bc665bf439"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/HypothesisValidation.java",
+    "sha256": "bc89bef9e362b6573c8ca23d88371a9a31bf94d887c642f40c46cdb8f8d57bcf"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/IncrementalEmbeddings.java",
+    "sha256": "618b0fd9170b42b6a85526aa6be13107503e3407bcf6241aac783ffac9a84cc4"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/InvestigationController.java",
+    "sha256": "c8428b7d16f9fd7952eeb393efb08445f75e41d322946197af9bf413d4347f68"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/InvestigationLoopController.java",
+    "sha256": "536088bf24dfce5dc198c660e9bab9446b8e9895a9d544f6a18727f7cf4f24bf"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/InvestigationLoopPolicy.java",
+    "sha256": "4b11d32bf6bd78f6c5f120a354d0ed6d50d1061466fdb4b859355f06467bff45"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/InvestigationLoopService.java",
+    "sha256": "f69576fce6154f3c52bfac6a8ce0990a7dae06503b187a8ecce37de283f3b622"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/InvestigationService.java",
+    "sha256": "51c6e6dba27345c4e3222dc7a2620048deae59c1c706247d2c8a9ffab0bc41ee"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaGraphController.java",
+    "sha256": "76c9e852daf7f1be8b3ee885ee2c202df7552c11afb52f422ac9ba3d5c1fb847"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaGraphService.java",
+    "sha256": "9974158e130e8c0b6d04f3ceab1047746a9ddfdb5ed93387b45175794b296f6c"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaImpactTraversal.java",
+    "sha256": "d130899616a02c57ae11fdc5d87f7bb70ed04e056923661535a9b79e16215afa"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaIndexController.java",
+    "sha256": "3c0d4b4827e61ea4adbb7211d6b6941fee78e05525662a3771af783b1743db6c"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaIndexService.java",
+    "sha256": "2c9bdd743c2a4e31265d1628a010fbda47b779d9930f97f109212e4d01cf5625"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaRelationshipAnalyzer.java",
+    "sha256": "f90387398c78acd56db54571269cf3e6b0cf424750d38bc49643b5ba17e578d7"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/JavaSymbolIndexer.java",
+    "sha256": "cf1d28e4a9147ea9cad7835bb003345261a00c70b857e79eaa0045685c264731"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ManualWorkflowController.java",
+    "sha256": "7583fa6d983c71e4b5d658cbaa88c725e50cb1edefbf8c93b35cc2c757aa8a46"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ManualWorkflowService.java",
+    "sha256": "96a04fedf76fc40e2cdeaa7136682d6b797fb10961edc6e18cd158e801f55082"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/MockAiProvider.java",
+    "sha256": "5bbc52bf99b4f6f50772205208420a618d5a251e39f0fc737b990a59107d866e"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/OllamaEmbeddings.java",
+    "sha256": "39a40910cb917055e92371bb3a26932da87547b5aba4be380cfd4a58c6a22d59"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/OpenAiResponsesProvider.java",
+    "sha256": "76613c196a4fd5d3b4657fea74204b16a9661a69776f39ce2fb281904531e764"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/PatchReviewController.java",
+    "sha256": "acf8436b76f52dd8ac876b62351105ad724383d18e859331e7a575b87a62dc03"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/PatchReviewEvidence.java",
+    "sha256": "e616d1dae11e0807d8ad49d4aa278b5248d4105de65824f4207ce77e5ed5a231"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/PatchReviewFiles.java",
+    "sha256": "e9c9e7deeb5a5e6b0458881f3ece2481fd3c6d72d0fe8e838931520a97092e3b"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/PatchReviewService.java",
+    "sha256": "eb55c04cf8c1c1a86a85f89b56c5c3217e6278226adbd90b1c4f8a69407a303f"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/QueueContracts.java",
+    "sha256": "5ef5d157bf71dbc4fd5d90d6dc9018eb17655803239b7e209a600f0127a76a92"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/QueueRecovery.java",
+    "sha256": "2557e27fb6509986c359dc703cc136a81b4b1e0bbbd2e08c9cafeefeb3fa58a8"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ReproductionController.java",
+    "sha256": "e3d4b8e86bb53c0976820477b9318a30aedcebbb1c180327e5836544244eb80d"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ReproductionOutcome.java",
+    "sha256": "39a4d42407f73da4b09dae1298968b75a1cc0e1900abc8f02c33b8de98d1ac9a"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/ReproductionService.java",
+    "sha256": "6a64d63c5e8444b9994f903518579656c64695f5e15edda7816e58ced55fa12d"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/RoleToolController.java",
+    "sha256": "4f63be9037d46a5e811b670e8110cb49b90f7be64ca2dd29664e2d0906264758"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/RoleToolFiles.java",
+    "sha256": "df8ab236c476d0408b474e411c8261696f6b77825c19c43347beee521088d6e9"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/RoleToolGateway.java",
+    "sha256": "9117e39dd9bfcfecc3689f0a2c4f6c858937df63e2ccba07c6fdb63e8f173cbc"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/RoleToolPolicy.java",
+    "sha256": "e4060f8f8275ae38084aba7b3e07938d3382443e030d84b91e764b864772bf55"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SelectedHistory.java",
+    "sha256": "6647562f88842c5e8791fa0b571a8a8e3254f167c1fa5b05b6b6fc67cf13f5e2"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SemanticChunks.java",
+    "sha256": "fa01c00b2608002e6c88c218ea0fb9b974c8905b859428513c7321084b0d2cd7"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SemanticRetrievalController.java",
+    "sha256": "5bf61a37b5638571c9cef78e61363cdb1bd4091c096a91e8146859a40f2b34ef"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SemanticRetrievalService.java",
+    "sha256": "113416c1a41ad0b1b17f017223c4b4861616215c7c9e1e837e7a72f04a440f2d"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SnapshotImportController.java",
+    "sha256": "9ac46934850f6718abbc1791d69ab348ae737bad2301c03d962bf35d7e6c8c4a"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SnapshotImportService.java",
+    "sha256": "a3c83e95f82854eff1ea7af8581c68526c4bc25f9051db412fc6df2950ada00f"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SnapshotSearchController.java",
+    "sha256": "49f5a84fffa5bc43da2e510d27c02d1e10bce50e0b130ea6ad5eb61a6bb81cd1"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SnapshotSearchEngine.java",
+    "sha256": "bda3468d21dec0a62d0de5174481509b76f366da1891bad1f296d9f2535c84db"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/SnapshotSearchService.java",
+    "sha256": "53b6423e3cd12ada368d4e75336a4878d155eae742699107bc730136cc78596b"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamAccessConfiguration.java",
+    "sha256": "5e632612a0bc6313ac82a229f663611a15629b15a305da8de45f5733ed8d5a39"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamAccessContext.java",
+    "sha256": "c3e8db700409bbb15125f6e245cae543ce19c65bf327aee13227f227259097bc"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamAccessController.java",
+    "sha256": "28b62c3d19219791d8752970d2681d6a59ca4d822f2db6beaa8a23f0d252978a"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamAccessFilter.java",
+    "sha256": "49eb2d6e539b7f1a1cbc7df169724697f2a6232e512663324d25ae92398619c0"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamAccessService.java",
+    "sha256": "f7d304a785be37384bad0e3e93b9fde74cfe83c3491794b51802027345ca7503"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamPermissionInterceptor.java",
+    "sha256": "7b8348e54cf77765f04bc94b5a8a7636edaf5afc3fba72fb34b7436d414c61b5"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/TeamPermissionPolicy.java",
+    "sha256": "a2a50c7abc85a090aef4d20f19f6808983d6872aa67071a73ef6864520115e25"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/WorkerPresenceController.java",
+    "sha256": "2168d90973144094ab209635f6d243bd32f45e28cc6a1551f37b0e46d6a9b2ae"
+  },
+  {
+    "path": "backend/src/main/java/com/bugtrace/backend/WorkerPresenceService.java",
+    "sha256": "5328a9f1eb648bfc486cb2e0d535c06b238a8292ff1fd13df93d6c64df9cdfe0"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V10__add_bounded_agent_roles.sql",
+    "sha256": "ec72b7dbf12f521bfe415a8084ec6618e1ad4fba4275af5efabfeae67247fdd8"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V11__add_role_tool_gateway.sql",
+    "sha256": "9df113452daaa664fe438e544d82f50cfec632a2c49925f709983152ce33aa9d"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V12__add_generated_reproduction.sql",
+    "sha256": "3098b09407307cc63eb548ce1b6c6118b2b8734fc948449daf3b931948da3b27"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V13__add_bounded_investigation_loop.sql",
+    "sha256": "23a0de8bb3d3d7b13e4393165e433dc56c2639aba97370fdf8c752f9a808a9fa"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V14__allow_unstarted_execution_errors.sql",
+    "sha256": "61c79c1bbe74905618b8ff5d13465adf695a50168f12406c588fc86b02f01fc2"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V15__add_controlled_scenario_batches.sql",
+    "sha256": "0ab44c6082aab44b9fd0de2cc0e4d93f590a6d9128fbbcff03ee82cf2bc5c22e"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V16__add_evidence_linked_diagnoses.sql",
+    "sha256": "3f3ddfc29ab0bb30a95400d21e1d503edad0a06c39b77203702ceca70f392b65"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V17__add_developer_patch_reviews.sql",
+    "sha256": "b229b2966c4345241b7cf5a5f755b255bba84c09bb1ae4fa6163041201d9818b"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V18__add_benchmark_case_registrations.sql",
+    "sha256": "c3762b471dd1760d132173dad764548af4f563fad7dc542dcf059ea931a2c3b6"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V19__add_benchmark_snapshot_imports.sql",
+    "sha256": "26e0e1affdd90f75c5a4d8ec95868013a5a55dc90b96d4705fc1c794c6b32fcd"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V1__initialize_database.sql",
+    "sha256": "031e33fb3d0f07a9d7e12e3e71f2f1ee76a77b70f26b828d9af7d40fb9b57506"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V20__add_benchmark_reproduction_runs.sql",
+    "sha256": "5db5bf637f95330d74e5f439e5366c1088771c1c580b9a2fcbe9d26fe215fca4"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V21__add_benchmark_case_records.sql",
+    "sha256": "a9b9973aadd0bf5b0cda9a8119f6b1fd39ee0a7973e78277daef97c4af8f67a9"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V22__add_benchmark_browser_requests.sql",
+    "sha256": "1717909410db3fc66466425f2a6e71b3bfc140a1994f2d608551ef0e8a49258f"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V23__add_benchmark_execution_links.sql",
+    "sha256": "2136c13fad153c5026f5803d0e42b7f7bcae6c05da715a1adc726f35ab804ea9"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V24__add_project_access_and_audit.sql",
+    "sha256": "ba72981251e20333f23dd2d63ce46b06556ab415e6ce664bafc8971180c44f03"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V25__add_worker_presence.sql",
+    "sha256": "a72a5310c024f3ed827dd60cf4d380d2e025d8da8c31ed3d7b3dfc8df14c8155"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V2__create_initial_tables.sql",
+    "sha256": "fec94a530825cf6c0e6c7cd19e63755c0f2562c0982a23d6eed8aae2bfbda1cb"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V3__add_snapshot_import_metadata.sql",
+    "sha256": "558e68120a633fe0d550bf292894d289107a59265d91a460e0b0fa5ad9198581"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V4__add_durable_execution_queue.sql",
+    "sha256": "c5c385c21f67738f87abdc7bcf884b9814cb46f5bc17a6c73d6392ce57d1a8dd"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V5__add_java_symbol_indexes.sql",
+    "sha256": "bafa5e7d3d81367cf11deaae2f0c59777947242cfb5f65fabc53c3031f853cde"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V6__add_java_relationship_graphs.sql",
+    "sha256": "596d605aca3e6cbd94a273ff6ad1958dd5db72e565d9e4c8161c33cdf94184a8"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V7__add_semantic_retrieval.sql",
+    "sha256": "50c70942ab7c4eeb886d34c1156cf752cc90bd524a5d1921582872259fc344cb"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V8__add_document_history_context.sql",
+    "sha256": "64fc1af516d52e3413254a20a8cd641fd43fb394172c45fb3d0f9640cab582e6"
+  },
+  {
+    "path": "backend/src/main/resources/db/migration/V9__add_model_calls.sql",
+    "sha256": "5fc139944ed5566ef6450bff137010f5e9e35460163517e59add2610abf7ae58"
+  },
+  {
+    "path": "backend/src/main/resources/team-endpoints.json",
+    "sha256": "87d3ca2c1c719ce41c2dd3a4e7d511ca5fdb942107fe3bf10706dcc9c5678f59"
+  },
+  {
+    "path": "docs/continuous-integration.md",
+    "sha256": "03b07e4aa502ddbf741c2418bee550a2d56384a59ebb8e68bf34435a35ad576b"
+  },
+  {
+    "path": "docs/local-startup.md",
+    "sha256": "b6b38d0bc55e0a988342b93179590f1b080f78e941132927564b394e121636e0"
+  },
+  {
+    "path": "frontend/package-lock.json",
+    "sha256": "c4f2657fbe8aed054fb8cd73de406a0dedee31f708760fa6bd474916420505d8"
+  },
+  {
+    "path": "frontend/package.json",
+    "sha256": "6adcd17dedaa4858e2f10ff7f6dc726b7de3e899212b91b54e059a3cc39baf07"
+  },
+  {
+    "path": "intellij-plugin/build.gradle.kts",
+    "sha256": "6bbf00e0be4b7cef2cf8b349a8cc8f781cecf43eaf14f506a1d5e64387be4362"
+  },
+  {
+    "path": "scripts/Advance-BenchmarkReproduction.ps1",
+    "sha256": "5ff94d2cbdc79e1b8eba91213e92c4416cbab5df0a7c0c07dc475529081c395e"
+  },
+  {
+    "path": "scripts/Get-LocalStatus.ps1",
+    "sha256": "8521216164f489dcd19c6bc801993a8a15430b8d3ca4f7faaf7435e42ad16a11"
+  },
+  {
+    "path": "scripts/Get-WorkerPresence.ps1",
+    "sha256": "fddf382d2c16a5cc49eb48316f3d96da0742856e63a645ac458848ffad1fd77d"
+  },
+  {
+    "path": "scripts/Import-BenchmarkCase.ps1",
+    "sha256": "334ec4aa48f968e052a62fbeb1dbcc1f3c492893f38b41f1e3c6cb63d3983bf7"
+  },
+  {
+    "path": "scripts/Invoke-BudgetedBenchmark.ps1",
+    "sha256": "afb94c4ec5db04ffb7fe878b10d3d1bacd3f7cc74c20ff517d0d82f985c2a9da"
+  },
+  {
+    "path": "scripts/Load-BenchmarkCaseRecords.ps1",
+    "sha256": "4bf2b5ffb9f8bd41ae91afc302b297bf550964afcc47d2297ea271da4db5045a"
+  },
+  {
+    "path": "scripts/LocalStartup.Common.ps1",
+    "sha256": "0eed904142ab1363d24936d5d280fb6da452be9028088a36e55cb84d468f7bf1"
+  },
+  {
+    "path": "scripts/New-BenchmarkReproductionRun.ps1",
+    "sha256": "4be17cb3ab4c31260e89139b96f214cc9ec14b95eb5ab32c69e831df581f33e5"
+  },
+  {
+    "path": "scripts/Prepare-BenchmarkCache.ps1",
+    "sha256": "086ce17ae839a9ed7f8b917aa0325161c83c2a4df8a78ca2915f4291b3f225d5"
+  },
+  {
+    "path": "scripts/Prepare-SemanticDatabase.ps1",
+    "sha256": "ae70924deb259909f17738e23d92c0a20c3c50970c234a8b4fcbfcbe28c04568"
+  },
+  {
+    "path": "scripts/Prepare-WorkerSnapshot.ps1",
+    "sha256": "d5331a0b770078890d67bb0f0d2b031ea28d4a628866895e96646041978a7a07"
+  },
+  {
+    "path": "scripts/Recover-ProjectOwner.ps1",
+    "sha256": "14b2db5e617fafbbafccd108f83750752712a86628406d0f2b2945f3b07c7fae"
+  },
+  {
+    "path": "scripts/Save-BenchmarkCaseRecord.ps1",
+    "sha256": "49678149287a73e83b369c792ed37f8734c9a830a779ddebad18a3f33ac717da"
+  },
+  {
+    "path": "scripts/Save-BenchmarkIsolationBaseline.ps1",
+    "sha256": "0fafae3761c6c82668360b585cccf4b30d3b318693c228cc020e7b29474b7359"
+  },
+  {
+    "path": "scripts/Set-BugTraceAccess.ps1",
+    "sha256": "5bf567ccf4b8b083b03de5deeb91ebe948240c42f1a8d0a43af4bea219ba26f1"
+  },
+  {
+    "path": "scripts/snapshot-tools/PrepareWorkerSnapshot.java",
+    "sha256": "44a1a9531354ec8fec5814a86ff62374c7a8eff87b6d1c0edcc565706b2d9f8c"
+  },
+  {
+    "path": "scripts/Start-AccessBackend.ps1",
+    "sha256": "f9dd96619d3c91a58e09e70001f7ca2975273ea93de5d05706a5d029d04fece7"
+  },
+  {
+    "path": "scripts/Start-BenchmarkWorker.ps1",
+    "sha256": "278c1bc791354e7c3647e19a290b66fffbc5b1117473aaa41c804e93344f302a"
+  },
+  {
+    "path": "scripts/Start-Local.ps1",
+    "sha256": "6941937b93ee9096cc23ea688a8165e878f45c6d7d585f31e0e709715cb41898"
+  },
+  {
+    "path": "scripts/Start-ManualBackend.ps1",
+    "sha256": "f05dd22c2ad1e2322737871d4208a6be8b2acc88d4e024a1d488e2dcaaba369f"
+  },
+  {
+    "path": "scripts/Start-ManualWorker.ps1",
+    "sha256": "771fc4ec4301314ae73efc38ef12c1b77061ee771a0e5eacf3e4f24fe82b261a"
+  },
+  {
+    "path": "scripts/Stop-LocalInfrastructure.ps1",
+    "sha256": "7a5765f503604dcc9f621959501d0c6b8b8d546a9a2a3528267129053331753d"
+  },
+  {
+    "path": "scripts/Test-AgentRoles.ps1",
+    "sha256": "175944a38da72682b526d862c7c52a14d6ffae960052ca0a63e744a6b9395ec3"
+  },
+  {
+    "path": "scripts/Test-BenchmarkBrowser.ps1",
+    "sha256": "48404a5d32c4cd0a5aca662b46fa6c2be2a7059fb5e1cd13eb6d66877113cd0c"
+  },
+  {
+    "path": "scripts/Test-BenchmarkCaseRecords.ps1",
+    "sha256": "e006e9969208438ce5077ae6ed5fe1fae57fad8d0cb141f5ffb717867a091517"
+  },
+  {
+    "path": "scripts/Test-BenchmarkEnvironment.ps1",
+    "sha256": "32ab7b00012e805bc2f06020beb22b05cb874a902e76aa81351a2a7b203fa29c"
+  },
+  {
+    "path": "scripts/Test-BenchmarkExecution.ps1",
+    "sha256": "374e03cdbe09469c9326813338ac75859b74822622a2ae611bc2769e87a5a506"
+  },
+  {
+    "path": "scripts/Test-BenchmarkIsolation.ps1",
+    "sha256": "43e5a87ef0edb28e28eaa369a70bdb0431de103dee501fc610b2b2ebc30f1ee1"
+  },
+  {
+    "path": "scripts/Test-BenchmarkIsolationRestart.ps1",
+    "sha256": "5287ba9026985a48be044552cfa5ed70d422ea1024d2d7c0f100c531bed7ac7f"
+  },
+  {
+    "path": "scripts/Test-BenchmarkRegistration.ps1",
+    "sha256": "726588fec7322149f2ca1f9e8aae53d286090ea3f93b2020e91552dd79c4ff6c"
+  },
+  {
+    "path": "scripts/Test-BenchmarkReproduction.ps1",
+    "sha256": "da09a29201c4632f756973d930fc63539b24b539f50fa83cb1c02f8da942d101"
+  },
+  {
+    "path": "scripts/Test-BenchmarkSnapshotImport.ps1",
+    "sha256": "800d818b2c874f8af9dbd3798b427acdd8767c6decc920303e567e7b47c95ba5"
+  },
+  {
+    "path": "scripts/Test-BenchmarkWorker.ps1",
+    "sha256": "23016db3ea4f7e85bbe89a164858fc8a8b2c9d5e2d165ac4b1173483d72b6a22"
+  },
+  {
+    "path": "scripts/Test-ControlledScenarios.ps1",
+    "sha256": "f21a1764fc182d6154b8fae9aead1ac6d978d8a4a89a6597bb61a195d2a25f6a"
+  },
+  {
+    "path": "scripts/Test-Diagnosis.ps1",
+    "sha256": "47f11b81d4ad3f9595ac574c5e39da1ce59dd4ba6360a82f384756bccb7f3919"
+  },
+  {
+    "path": "scripts/Test-DocumentContext.ps1",
+    "sha256": "7f0c14c5164dc216d7e29d6dbcc2f376a4a9c2e94f7dc273e8d94fd7af54b174"
+  },
+  {
+    "path": "scripts/Test-GeneratedReproduction.ps1",
+    "sha256": "49bf33e581179ba654742d5f9e439e6d33ab22760d3c7e22406b2046e9244d2c"
+  },
+  {
+    "path": "scripts/Test-InvestigationLoop.ps1",
+    "sha256": "abaab64947f2554904903c38b64dd961922213a89bedf6ccf850f3dfce57d729"
+  },
+  {
+    "path": "scripts/Test-LocalStartup.ps1",
+    "sha256": "eb3b1e469ba6d739689eb8875569b100ca16b5c7a5e819078fae757f2ecb693f"
+  },
+  {
+    "path": "scripts/Test-ModelIntegration.ps1",
+    "sha256": "748e5657f6fac6d9a3e1c27a541a3ac7997d9440332d813187213a527343680e"
+  },
+  {
+    "path": "scripts/Test-PatchReview.ps1",
+    "sha256": "9a96064242c25cead0e8fe66da82ead443196042d6c11475be4baa79631e7b1c"
+  },
+  {
+    "path": "scripts/Test-RoleTools.ps1",
+    "sha256": "9a99887e4832ea59e08faf146bac2353b875b109fae5e82c0cd8b28d38249b6e"
+  },
+  {
+    "path": "scripts/Test-SemanticRetrieval.ps1",
+    "sha256": "b17ab728cc8d4b85a8dee6284a7fe21790e524ea5d8d0d23cb518e830890aea5"
+  },
+  {
+    "path": "scripts/Test-TeamAccess.ps1",
+    "sha256": "7301aa82dc5580db54f0ba1f56563cfb6b8ee112e7c764946707d7e32e73b31a"
+  },
+  {
+    "path": "scripts/Test-TrustedSampleRestrictions.ps1",
+    "sha256": "299816304373db6aa7964b54e80dcd627d0d7a32ce0df4eba48ec77d648bf10b"
+  },
+  {
+    "path": "scripts/Test-WorkerDashboard.ps1",
+    "sha256": "a66ebeaa7a792921a6ba2ea6d90f5933e76e0eeb2cacdd4c8846776278e07d19"
+  },
+  {
+    "path": "scripts/Test-WorkerPresence.ps1",
+    "sha256": "893c65d2d1fe47d23e3c2fa2ed1988532228e2e0af617738eb6c7b28ffea33cd"
+  },
+  {
+    "path": "scripts/Test-WorkerReconnect.ps1",
+    "sha256": "3243900596603731080c4fcef8b42e2e15d4e26ff7d20a8911efc7bccb8538ce"
+  },
+  {
+    "path": "scripts/Use-BugTraceAccess.ps1",
+    "sha256": "fac9526a16a581490a8070e087037fb0d22405051aa0861476bbaaf31b2e6217"
+  },
+  {
+    "path": "scripts/WorkerBackend.Common.ps1",
+    "sha256": "7d70cfc75d0a84ecf0a3d74fad40977218df6446d550089151fa24bae683e1fb"
+  },
+  {
+    "path": "worker/pom.xml",
+    "sha256": "aaa5010028c2bae1b05f44742ce7c1d9041eb981f55a0e0fbe268f5e14eb1ef1"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/BackendOrigin.java",
+    "sha256": "54f5c9966229414aefc5aa8d82b1825f03ccda0d09ef2cee38b53163c3919254"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/BenchmarkEnvironmentPolicy.java",
+    "sha256": "e3cd9a9143c21acc0deea86fdcc92fa102eab11840733e3116b08ec919e883ba"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/BenchmarkWorkerRegistration.java",
+    "sha256": "4930a881171b4ec838ade0dfbc25b3755c4827fd8a030da33b6069b1f3a7c663"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/CompletionOutbox.java",
+    "sha256": "5a1989ea13dbf7fda126ec5304066da3afe1924eb76f19e9cd6518dd5671ba7e"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/DockerCommands.java",
+    "sha256": "3f5281fedec2cdf04babdf886e4dce52be4a250962f828c0102ecdf3ebda010f"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/ExecutionDeadline.java",
+    "sha256": "9fdefc4620a17880f3ca1e7aea50ea55f8be0283d635169dcc19a31774280dfe"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/ExecutionEvidence.java",
+    "sha256": "33bd0e37d5b6bd198f79367808b08cd0788982463b24ce9e857b92fac1655981"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/GeneratedTestOverlay.java",
+    "sha256": "c6ec801527409984dce811fe1ff94dd583b2cb5bc07f1c8f211f55eea422eaee"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/LocalDocker.java",
+    "sha256": "b8134919cf89b1bda13185887ff99d913063df91b23f9d094fa7f0e4716d4c75"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/MavenCommands.java",
+    "sha256": "647239aefa73727c136bf2a97a2e8ee92bdb1b622b0b4efe72cb9aafa23bedfa"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/QueueClient.java",
+    "sha256": "d906a3a66193545ee43a83c8f3210de7514560f0e1e4a5d09ead4306b1abfa6c"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/RetryBackoff.java",
+    "sha256": "3716ad8f4b25b5fd13a49a818fadd4a70b982c2652d58d0a2d79a08b1fff5639"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/SnapshotFiles.java",
+    "sha256": "f72a5039cbfbd22512fafdf9711a50b32a21b12e7c3346b322a0d5d88bb1cd45"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/WorkerAccessFilter.java",
+    "sha256": "936bf304b541a6b9fed03b7a8f796d3aed993c730ba7c42d1e34aee14be89a2a"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/WorkerApplication.java",
+    "sha256": "bd146227e0ed87b29d0426ced7190c5f62b4e7ec903b7204c02055dc827d6e1a"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/WorkerController.java",
+    "sha256": "5148a77711e5cd7728ba0f0ca08a2c61643106514e2d769abdb0f3d486ab6d19"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/WorkerErrors.java",
+    "sha256": "fd6fc7147e79aa201b8ee9cbb648c93e81edffb221bc787b235dc4a25feccb4d"
+  },
+  {
+    "path": "worker/src/main/java/com/bugtrace/worker/WorkerService.java",
+    "sha256": "92dc1c45e57f934dd94310d1e6c19c66f4d9ef4fc1a7010351209df4464011e3"
+  }
+]
