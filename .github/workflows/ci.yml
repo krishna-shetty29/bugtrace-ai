@@ -1,0 +1,159 @@
+name: Code checks
+
+'on':
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: code-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUGTRACE_AI_PROVIDER: mock
+  BUGTRACE_AI_MODEL: mock-v1
+  OPENAI_API_KEY: ''
+  BUGTRACE_BOOTSTRAP_SECRET: ''
+  BUGTRACE_ACCESS_KEY: ''
+  WORKER_ACCESS_TOKEN: ''
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.7-pg17-bookworm
+        env:
+          POSTGRES_DB: bugtrace_ci
+          POSTGRES_USER: bugtrace_ci
+          POSTGRES_PASSWORD: ci_disposable_only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bugtrace_ci -d bugtrace_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 15
+    env:
+      DB_URL: jdbc:postgresql://127.0.0.1:5432/bugtrace_ci
+      POSTGRES_USER: bugtrace_ci
+      POSTGRES_PASSWORD: ci_disposable_only
+      RUN_AI_PG_TEST: 'true'
+      RUN_QUEUE_PG_TEST: 'true'
+      RUN_TEAM_ACCESS_PG_TEST: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Build and test with mock provider
+        working-directory: backend
+        run: >-
+          bash ./mvnw --batch-mode --no-transfer-progress
+          -Dbugtrace.ai.provider=mock -Dbugtrace.ai.model=mock-v1
+          -Dbugtrace.ai.api-key= clean verify
+      - name: Save backend results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-results
+          path: |
+            backend/target/surefire-reports/
+            backend/target/*.jar
+          retention-days: 7
+          if-no-files-found: warn
+
+  worker:
+    name: Worker build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: worker/pom.xml
+      - name: Build and test worker contracts
+        working-directory: worker
+        run: bash ./mvnw --batch-mode --no-transfer-progress clean verify
+      - name: Save worker results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: worker-results
+          path: |
+            worker/target/surefire-reports/
+            worker/target/*.jar
+          retention-days: 7
+          if-no-files-found: warn
+
+  frontend:
+    name: Frontend types and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Type check and build
+        working-directory: frontend
+        run: npm run build
+      - name: Save frontend build
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  plugin:
+    name: Plugin build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: '9.5.0'
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+      - name: Core checks, plugin build and structure validation
+        run: >-
+          gradle --no-daemon --stacktrace -p intellij-plugin
+          -I "$GITHUB_WORKSPACE/ci/plugin.init.gradle.kts"
+          clean coreChecks buildPlugin verifyPluginStructure
+      - name: Save plugin build
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-results
+          path: |
+            intellij-plugin/build/distributions/*.zip
+            intellij-plugin/build/reports/
+          retention-days: 7
+          if-no-files-found: warn

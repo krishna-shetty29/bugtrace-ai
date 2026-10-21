@@ -1,0 +1,70 @@
+name: Live benchmark - proposal only
+
+'on':
+  workflow_dispatch:
+    inputs:
+      import_record:
+        description: Full import JSON path on the dedicated benchmark machine
+        required: true
+        type: string
+      expected_model:
+        description: Exact generation model configured on the backend
+        required: true
+        type: string
+      max_calls:
+        description: Maximum model calls (1-8)
+        type: number
+        default: 2
+      max_output_reservation:
+        description: Total output-token reservation; must cover each permitted call
+        type: number
+        default: 3000
+      wall_seconds:
+        description: Server-enforced wall budget (120-1800 seconds)
+        type: number
+        default: 600
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-benchmark-machine
+  cancel-in-progress: false
+
+jobs:
+  proposal:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: [self-hosted, Windows, bugtrace-benchmark]
+    environment: live-benchmarks
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Run an explicitly authorized budgeted proposal investigation
+        shell: pwsh
+        env:
+          BUGTRACE_ACCESS_KEY: ${{ secrets.BENCHMARK_PROJECT_KEY }}
+          BENCHMARK_IMPORT_RECORD: ${{ inputs.import_record }}
+          BENCHMARK_EXPECTED_MODEL: ${{ inputs.expected_model }}
+          BENCHMARK_MAX_CALLS: ${{ inputs.max_calls }}
+          BENCHMARK_OUTPUT_RESERVATION: ${{ inputs.max_output_reservation }}
+          BENCHMARK_WALL_SECONDS: ${{ inputs.wall_seconds }}
+        run: |
+          & ./scripts/Invoke-BudgetedBenchmark.ps1 `
+            -ImportRecord $env:BENCHMARK_IMPORT_RECORD `
+            -ExpectedModel $env:BENCHMARK_EXPECTED_MODEL `
+            -MaxCalls ([int]$env:BENCHMARK_MAX_CALLS) `
+            -MaxOutputReservation ([int]$env:BENCHMARK_OUTPUT_RESERVATION) `
+            -WallSeconds ([int]$env:BENCHMARK_WALL_SECONDS) `
+            -OutputDirectory (Join-Path $env:RUNNER_TEMP 'bugtrace-benchmark-results') `
+            -AllowLiveProvider
+      - name: Save budget and termination records
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-proposal-${{ github.run_id }}
+          path: ${{ runner.temp }}/bugtrace-benchmark-results/
+          retention-days: 7
+          if-no-files-found: warn
