@@ -1,0 +1,19 @@
+<idea-plugin>
+    <id>com.bugtrace.idea</id>
+    <name>BugTrace AI</name>
+    <version>0.2.0</version>
+    <vendor>BugTrace AI local development</vendor>
+    <description><![CDATA[Submit bug reports using committed Git snapshots and inspect project investigation status. Requires a running BugTrace backend and personal project access key. Uncommitted changes are excluded.]]></description>
+    <idea-version since-build="262.10968.63" until-build="262.*"/>
+    <depends>com.intellij.modules.platform</depends>
+    <extensions defaultExtensionNs="com.intellij">
+        <projectConfigurable parentId="tools" instance="com.bugtrace.idea.BugTraceConfigurable" id="com.bugtrace.idea.settings" displayName="BugTrace AI"/>
+        <toolWindow id="BugTrace AI" anchor="right" icon="/icons/bugtrace.svg" factoryClass="com.bugtrace.idea.StatusToolWindowFactory"/>
+    </extensions>
+    <actions>
+        <action id="BugTrace.Submit" class="com.bugtrace.idea.SubmitAction" text="Submit to BugTrace AI" description="Submit a bug report for the current committed Git snapshot">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
