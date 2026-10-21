@@ -55,7 +55,7 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: backend/pom.xml
-	      - name: Initialize CI vector extension
+      - name: Initialize CI vector extension
         env:
           CI_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
         run: |
